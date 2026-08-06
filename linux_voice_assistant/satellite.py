@@ -1001,15 +1001,30 @@ class VoiceSatelliteProtocol(APIServer):
             self._emit(LVAEvent.LISTENING)
             _LOGGER.debug("Continuing conversation after %.2fs settle delay", self.state.continue_conversation_delay)
 
+            def _open_mic() -> None:
+                self.send_messages([VoiceAssistantRequest(start=True)])
+                self._is_streaming_audio = True
+                _LOGGER.debug("Continued conversation started")
+
             def _start_continued_conversation() -> None:
                 if self.state.muted:
                     _LOGGER.debug("Skipping continued conversation: muted")
                     self._pipeline_active = False
                     self.unduck()
                     return
-                self.send_messages([VoiceAssistantRequest(start=True)])
-                self._is_streaming_audio = True
-                _LOGGER.debug("Continued conversation started")
+
+                if not self.state.continue_conversation_sound:
+                    _open_mic()
+                elif self.state.listen_during_wake_sound:
+                    self.state.tts_player.play(self.state.continue_conversation_sound)
+                    _open_mic()
+                else:
+                    # Same flow as wakeup(): the chime plays first so the mic does
+                    # not stream it back to Home Assistant.
+                    self.state.tts_player.play(
+                        self.state.continue_conversation_sound,
+                        done_callback=_open_mic,
+                    )
 
             threading.Timer(self.state.continue_conversation_delay, _start_continued_conversation).start()
         else:

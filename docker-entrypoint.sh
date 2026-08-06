@@ -116,6 +116,11 @@ if [ -n "${UNMUTE_SOUND}" ]; then
   EXTRA_ARGS+=( "--unmute-sound" "$UNMUTE_SOUND" )
 fi
 
+# Set-but-empty is meaningful here: it disables the sound.
+if [ -n "${CONTINUE_CONVERSATION_SOUND+x}" ]; then
+  EXTRA_ARGS+=( "--continue-conversation-sound" "$CONTINUE_CONVERSATION_SOUND" )
+fi
+
 if [ -n "${TIMER_MAX_RING_SECONDS}" ]; then
   EXTRA_ARGS+=( "--timer-max-ring-seconds" "$TIMER_MAX_RING_SECONDS" )
 fi

@@ -127,6 +127,8 @@ class ServerState:
     download_dir: Path
     continue_conversation_delay: float = 0.5  # seconds to wait after TTS before opening mic
 
+    # Empty string disables the sound.
+    continue_conversation_sound: str = ""
     media_player_entity: "Optional[MediaPlayerEntity]" = None
     satellite: "Optional[VoiceSatelliteProtocol]" = None
     connections: "List[VoiceSatelliteProtocol]" = field(default_factory=list)
