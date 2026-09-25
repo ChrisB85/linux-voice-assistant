@@ -6,12 +6,11 @@ from unittest.mock import MagicMock
 from linux_voice_assistant.satellite import VoiceSatelliteProtocol
 
 
-def _satellite(
-    continue_conversation_sound: str, listen_during_wake_sound: bool = False
-) -> VoiceSatelliteProtocol:
+def _satellite(continue_conversation_sound: str, listen_during_wake_sound: bool = False) -> VoiceSatelliteProtocol:
     satellite = VoiceSatelliteProtocol.__new__(VoiceSatelliteProtocol)
-    satellite.state = SimpleNamespace(
+    satellite.state = SimpleNamespace(  # type: ignore[assignment]
         continue_conversation_sound=continue_conversation_sound,
+        continue_conversation_sound_enabled=True,
         continue_conversation_delay=0.0,
         listen_during_wake_sound=listen_during_wake_sound,
         muted=False,
@@ -20,8 +19,8 @@ def _satellite(
         active_wake_words=set(),
         stop_word=SimpleNamespace(id="stop"),
     )
-    satellite.send_messages = MagicMock()
-    satellite._emit = MagicMock()
+    satellite.send_messages = MagicMock()  # type: ignore[method-assign]
+    satellite._emit = MagicMock()  # type: ignore[method-assign]
     satellite._continue_conversation = True
     satellite._is_streaming_audio = False
     satellite._pipeline_active = True
@@ -64,8 +63,9 @@ def test_listen_during_wake_sound_opens_mic_immediately(monkeypatch):
     assert satellite._is_streaming_audio
 
 
-def test_empty_sound_disables_playback(monkeypatch):
-    satellite = _satellite("")
+def test_switch_off_disables_playback(monkeypatch):
+    satellite = _satellite("wake.flac")
+    satellite.state.continue_conversation_sound_enabled = False
     timer_cls = MagicMock()
     monkeypatch.setattr("linux_voice_assistant.satellite.threading.Timer", timer_cls)
 
@@ -100,3 +100,16 @@ def test_no_sound_when_conversation_ends(monkeypatch):
     timer_cls.assert_not_called()
     satellite.state.tts_player.play.assert_not_called()
     satellite.state.music_player.unduck.assert_called_once()
+
+
+def test_switch_persists_to_preferences():
+    satellite = _satellite("wake.flac")
+    satellite.state.continue_conversation_sound_enabled = False
+    satellite.state.preferences = SimpleNamespace(continue_conversation_sound=0)
+    satellite.state.save_preferences = MagicMock()
+
+    satellite._set_continue_conversation_sound_enabled(True)
+
+    assert satellite.state.continue_conversation_sound_enabled
+    assert satellite.state.preferences.continue_conversation_sound == 1
+    satellite.state.save_preferences.assert_called_once()

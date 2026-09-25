@@ -116,8 +116,7 @@ if [ -n "${UNMUTE_SOUND}" ]; then
   EXTRA_ARGS+=( "--unmute-sound" "$UNMUTE_SOUND" )
 fi
 
-# Set-but-empty is meaningful here: it disables the sound.
-if [ -n "${CONTINUE_CONVERSATION_SOUND+x}" ]; then
+if [ -n "${CONTINUE_CONVERSATION_SOUND}" ]; then
   EXTRA_ARGS+=( "--continue-conversation-sound" "$CONTINUE_CONVERSATION_SOUND" )
 fi
 
