@@ -150,7 +150,7 @@ async def main() -> None:
     )
     parser.add_argument(
         "--continue-conversation-sound",
-        help="Sound to play when the microphone re-opens for a follow-up question (default: same as --wakeup-sound, empty string disables)",
+        help="Sound to play when the microphone re-opens for a follow-up question, if enabled from Home Assistant (default: same as --wakeup-sound)",
     )
     parser.add_argument(
         "--button-double-press-sound",
