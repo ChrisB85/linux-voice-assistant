@@ -424,7 +424,7 @@ class ContinueConversationSoundEntity(ESPHomeEntity):
                 key=self.key,
                 name=self.name,
                 entity_category=EntityCategory.CONFIG,
-                icon="mdi:bell-ring-outline",
+                icon="mdi:chat-question",
             )
         elif isinstance(msg, SubscribeHomeAssistantStatesRequest):
             self.sync_with_state()
