@@ -826,7 +826,7 @@ class VoiceSatelliteProtocol(APIServer):
             return
 
         wake_word_phrase = wake_word.wake_word  # type: ignore[union-attr]
-        _LOGGER.debug("Detected wake word: %s", wake_word_phrase)
+        _LOGGER.info("Detected wake word: %s", wake_word_phrase)
 
         self._timer_finished = False
         self._timer_ring_start = None
