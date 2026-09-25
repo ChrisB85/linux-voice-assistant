@@ -6,11 +6,9 @@ from unittest.mock import MagicMock
 from linux_voice_assistant.satellite import VoiceSatelliteProtocol
 
 
-def _satellite(
-    continue_conversation_sound: str, listen_during_wake_sound: bool = False
-) -> VoiceSatelliteProtocol:
+def _satellite(continue_conversation_sound: str, listen_during_wake_sound: bool = False) -> VoiceSatelliteProtocol:
     satellite = VoiceSatelliteProtocol.__new__(VoiceSatelliteProtocol)
-    satellite.state = SimpleNamespace(
+    satellite.state = SimpleNamespace(  # type: ignore[assignment]
         continue_conversation_sound=continue_conversation_sound,
         continue_conversation_delay=0.0,
         listen_during_wake_sound=listen_during_wake_sound,
@@ -20,8 +18,8 @@ def _satellite(
         active_wake_words=set(),
         stop_word=SimpleNamespace(id="stop"),
     )
-    satellite.send_messages = MagicMock()
-    satellite._emit = MagicMock()
+    satellite.send_messages = MagicMock()  # type: ignore[method-assign]
+    satellite._emit = MagicMock()  # type: ignore[method-assign]
     satellite._continue_conversation = True
     satellite._is_streaming_audio = False
     satellite._pipeline_active = True

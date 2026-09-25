@@ -150,10 +150,7 @@ async def main() -> None:
     )
     parser.add_argument(
         "--continue-conversation-sound",
-        help=(
-            "Sound to play when the microphone re-opens for a follow-up question "
-            "(default: same as --wakeup-sound, empty string disables)"
-        ),
+        help="Sound to play when the microphone re-opens for a follow-up question (default: same as --wakeup-sound, empty string disables)",
     )
     parser.add_argument(
         "--button-double-press-sound",
@@ -454,11 +451,7 @@ async def main() -> None:
         button_double_press_sound=args.button_double_press_sound,
         button_triple_press_sound=args.button_triple_press_sound,
         button_long_press_sound=args.button_long_press_sound,
-        continue_conversation_sound=(
-            args.wakeup_sound
-            if args.continue_conversation_sound is None
-            else args.continue_conversation_sound
-        ),
+        continue_conversation_sound=(args.wakeup_sound if args.continue_conversation_sound is None else args.continue_conversation_sound),
         preferences=preferences,
         preferences_path=preferences_path,
         refractory_seconds=args.refractory_seconds,
