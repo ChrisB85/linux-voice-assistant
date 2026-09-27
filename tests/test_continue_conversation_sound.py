@@ -22,6 +22,7 @@ def _satellite(continue_conversation_sound: str, listen_during_wake_sound: bool 
     satellite.send_messages = MagicMock()  # type: ignore[method-assign]
     satellite._emit = MagicMock()  # type: ignore[method-assign]
     satellite._continue_conversation = True
+    satellite._wake_word_phrase = ""
     satellite._is_streaming_audio = False
     satellite._pipeline_active = True
     return satellite
@@ -113,3 +114,19 @@ def test_switch_persists_to_preferences():
     assert satellite.state.continue_conversation_sound_enabled
     assert satellite.state.preferences.continue_conversation_sound == 1
     satellite.state.save_preferences.assert_called_once()
+
+
+def test_follow_up_keeps_wake_word_phrase(monkeypatch):
+    # HA picks the pipeline slot by wake word phrase; without it the follow-up
+    # would run slot 1's pipeline (another assistant's voice).
+    satellite = _satellite("")
+    satellite._wake_word_phrase = "Alexa"
+    timer_cls = MagicMock()
+    monkeypatch.setattr("linux_voice_assistant.satellite.threading.Timer", timer_cls)
+
+    satellite._tts_finished()
+    _run_settle_timer(satellite, timer_cls)
+
+    request = satellite.send_messages.call_args_list[-1].args[0][0]
+    assert request.start
+    assert request.wake_word_phrase == "Alexa"
