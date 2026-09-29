@@ -406,27 +406,75 @@ def _finish_timer(sat, name):
     sat.handle_timer_event(VoiceAssistantTimerEventType.VOICE_ASSISTANT_TIMER_FINISHED, msg)
 
 
+def _first_gong_done(sat):
+    with patch("linux_voice_assistant.satellite.threading.Timer") as timer, patch("linux_voice_assistant.satellite.time.sleep"):
+        sat._timer_ring_done()
+    sat.state.tts_player.play.reset_mock()
+    return timer
+
+
 class TestNamedTimer:
-    def test_named_timer_fires_event(self, tmp_path):
+    def test_gong_plays_before_event(self, tmp_path):
         sat = make_satellite(tmp_path)
         _finish_timer(sat, "piwo")
+        sat.state.tts_player.play.assert_called_once()
+        sat.send_messages.assert_not_called()
+
+    def test_first_gong_fires_event_and_pauses_ring(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        _finish_timer(sat, "piwo")
+        sat.state.tts_player.play.reset_mock()
+        timer = _first_gong_done(sat)
         (sent,), _ = sat.send_messages.call_args
         assert sent[0].service == "esphome.lva_timer_finished"
         assert sent[0].is_event is True
         assert {d.key: d.value for d in sent[0].data} == {"name": "piwo"}
+        timer.return_value.start.assert_called_once()
+        assert sat._timer_announce_paused_at is not None
 
-    def test_unnamed_timer_fires_no_event(self, tmp_path):
-        sat = make_satellite(tmp_path)
-        _finish_timer(sat, "")
-        sat.send_messages.assert_not_called()
-
-    def test_announcement_end_resumes_ring(self, tmp_path):
+    def test_event_fires_once(self, tmp_path):
         sat = make_satellite(tmp_path)
         _finish_timer(sat, "piwo")
+        _first_gong_done(sat)
+        sat.send_messages.reset_mock()
+        _first_gong_done(sat)
+        sat.send_messages.assert_not_called()
+
+    def test_unnamed_timer_rings_on_without_event(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        _finish_timer(sat, "")
         sat.state.tts_player.play.reset_mock()
-        sat._tts_finished()
+        with patch("linux_voice_assistant.satellite.time.sleep"):
+            sat._timer_ring_done()
+        sat.send_messages.assert_not_called()
+        sat.state.tts_player.play.assert_called_once()
+
+    def test_announcement_end_resumes_ring_without_eating_limit(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        _finish_timer(sat, "piwo")
+        sat._timer_ring_start = 100.0
+        with patch("linux_voice_assistant.satellite.time.monotonic", return_value=103.0):
+            _first_gong_done(sat)
+        with patch("linux_voice_assistant.satellite.time.monotonic", return_value=106.0):
+            sat._tts_finished()
+        assert sat._timer_ring_start == 103.0
         sat.state.tts_player.play.assert_called_once()
         assert sat.state.stop_word.id in sat.state.active_wake_words
+
+    def test_timeout_resumes_ring_without_announcement(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        _finish_timer(sat, "piwo")
+        _first_gong_done(sat)
+        sat._timer_announce_timeout()
+        sat.state.tts_player.play.assert_called_once()
+
+    def test_timeout_leaves_playing_announcement_alone(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        _finish_timer(sat, "piwo")
+        _first_gong_done(sat)
+        sat.state.tts_player.is_playing = True
+        sat._timer_announce_timeout()
+        sat.state.tts_player.play.assert_not_called()
 
     def test_ring_does_not_cut_announcement(self, tmp_path):
         sat = make_satellite(tmp_path)
@@ -439,8 +487,9 @@ class TestNamedTimer:
     def test_stop_during_announcement_ends_timer(self, tmp_path):
         sat = make_satellite(tmp_path)
         _finish_timer(sat, "piwo")
+        _first_gong_done(sat)
         sat.stop()
-        sat.state.tts_player.play.reset_mock()
         sat._tts_finished()
+        sat._timer_announce_timeout()
         sat.state.tts_player.play.assert_not_called()
         assert sat.state.stop_word.id not in sat.state.active_wake_words
