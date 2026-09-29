@@ -18,6 +18,8 @@ from aioesphomeapi.api_pb2 import (  # type: ignore[attr-defined]
     AuthenticationRequest,
     DeviceInfoRequest,
     DeviceInfoResponse,
+    HomeassistantActionRequest,
+    HomeassistantServiceMap,
     LightCommandRequest,
     ListEntitiesDoneResponse,
     ListEntitiesRequest,
@@ -698,6 +700,20 @@ class VoiceSatelliteProtocol(APIServer):
                 self.duck()
                 self._emit(LVAEvent.TIMER_RINGING, timer_data)
                 self._play_timer_finished()
+                # Home Assistant only rings the device; a named timer is
+                # announced by an automation listening for this event
+                # (HA adds device_id). The announcement interrupts the ring
+                # loop, _tts_finished() resumes it.
+                if msg.name:
+                    self.send_messages(
+                        [
+                            HomeassistantActionRequest(
+                                service="esphome.lva_timer_finished",
+                                is_event=True,
+                                data=[HomeassistantServiceMap(key="name", value=msg.name)],
+                            )
+                        ]
+                    )
 
     # ------------------------------------------------------------------
     # Message routing
@@ -1024,9 +1040,16 @@ class VoiceSatelliteProtocol(APIServer):
 
     def _tts_finished(self) -> None:
         self._pipeline_active = False
-        self.state.active_wake_words.discard(self.state.stop_word.id)
         self.send_messages([VoiceAssistantAnnounceFinished()])
         self._emit(LVAEvent.TTS_FINISHED)
+
+        if self._timer_finished:
+            # An announcement replaced the timer ring; keep ringing until stopped.
+            self._emit(LVAEvent.TIMER_RINGING)
+            self._play_timer_finished()
+            return
+
+        self.state.active_wake_words.discard(self.state.stop_word.id)
 
         if self._continue_conversation:
             self._continue_conversation = False
@@ -1106,6 +1129,11 @@ class VoiceSatelliteProtocol(APIServer):
                 self.state.active_wake_words.discard(self.state.stop_word.id)
                 self.unduck()
                 return
+
+        if self.state.tts_player.is_playing:
+            # An announcement (e.g. the timer's name) is playing; its
+            # _tts_finished() resumes the ring instead of cutting it off.
+            return
 
         self.state.tts_player.play(
             self.state.timer_finished_sound,
