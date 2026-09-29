@@ -67,11 +67,9 @@ from .entity import (
 )
 from .models import AvailableWakeWord, ServerState, WakeWordType
 from .peripheral_api import LVAEvent
+from .util import call_all
 
 _LOGGER = logging.getLogger(__name__)
-
-# Seconds a named timer waits for its name announcement before ringing on.
-_TIMER_ANNOUNCE_WAIT = 5.0
 
 PROTO_TO_MESSAGE_TYPE = {v: k for k, v in MESSAGE_TYPE_TO_PROTO.items()}
 
@@ -378,10 +376,8 @@ class VoiceSatelliteProtocol(APIServer):
         self._wake_word_phrase = ""
         self._timer_finished = False
         self._timer_ring_start: Optional[float] = None
-        # Named timer: name still to announce after the first gong, and when
-        # the ring paused for that announcement.
+        # Name of the ringing timer, announced once the ring ends.
         self._timer_announce_name: Optional[str] = None
-        self._timer_announce_paused_at: Optional[float] = None
         self._processing = False
         self._pipeline_active = False
         self._external_wake_words: Dict[str, VoiceAssistantExternalWakeWord] = {}
@@ -705,7 +701,6 @@ class VoiceSatelliteProtocol(APIServer):
                 self._timer_ring_start = time.monotonic()
                 self.duck()
                 self._timer_announce_name = msg.name or None
-                self._timer_announce_paused_at = None
                 self._emit(LVAEvent.TIMER_RINGING, timer_data)
                 self._play_timer_finished()
 
@@ -1007,12 +1002,11 @@ class VoiceSatelliteProtocol(APIServer):
         if self._timer_finished:
             self._timer_finished = False
             self._timer_ring_start = None
-            self._timer_announce_name = None
-            self._timer_announce_paused_at = None
             self.unduck()
             self.state.tts_player.stop()
             self._emit(LVAEvent.IDLE)
             _LOGGER.debug("Stopping timer finished sound")
+            self._announce_timer_name()
         else:
             # tts_player.stop() invokes the done_callback (_tts_finished),
             # so we don't call _tts_finished() again explicitly.
@@ -1042,7 +1036,7 @@ class VoiceSatelliteProtocol(APIServer):
         if self._timer_finished:
             # An announcement played during the ring; keep ringing until stopped.
             self._emit(LVAEvent.TIMER_RINGING)
-            self._resume_timer_ring()
+            self._play_timer_finished()
             return
 
         self.state.active_wake_words.discard(self.state.stop_word.id)
@@ -1124,25 +1118,28 @@ class VoiceSatelliteProtocol(APIServer):
                 self._timer_ring_start = None
                 self.state.active_wake_words.discard(self.state.stop_word.id)
                 self.unduck()
+                self._announce_timer_name()
                 return
 
         if self.state.tts_player.is_playing:
-            # An announcement (e.g. the timer's name) is playing; its
-            # _tts_finished() resumes the ring instead of cutting it off.
+            # An announcement is playing; its _tts_finished() resumes the
+            # ring instead of cutting it off.
             return
 
         self.state.tts_player.play(
             self.state.timer_finished_sound,
-            done_callback=self._timer_ring_done,
+            done_callback=lambda: call_all(
+                lambda: time.sleep(1.0),
+                self._play_timer_finished,
+            ),
         )
 
-    def _timer_ring_done(self) -> None:
-        if self._timer_finished and self._timer_announce_name:
-            # Home Assistant only rings the device. After the first gong, ask an
-            # automation to announce the timer's name (HA adds device_id) and
-            # pause the ring; _tts_finished() resumes it.
-            name, self._timer_announce_name = self._timer_announce_name, None
-            self._timer_announce_paused_at = time.monotonic()
+    def _announce_timer_name(self) -> None:
+        # Home Assistant only rings the device. Once the ring ends (limit or
+        # stop word), an automation announces the timer's name on this
+        # satellite from this event (HA adds device_id).
+        name, self._timer_announce_name = self._timer_announce_name, None
+        if name:
             self.send_messages(
                 [
                     HomeassistantActionRequest(
@@ -1152,24 +1149,6 @@ class VoiceSatelliteProtocol(APIServer):
                     )
                 ]
             )
-            threading.Timer(_TIMER_ANNOUNCE_WAIT, self._timer_announce_timeout).start()
-            return
-
-        time.sleep(1.0)
-        self._play_timer_finished()
-
-    def _timer_announce_timeout(self) -> None:
-        # No announcement arrived (automation off or failed): ring on anyway.
-        if self._timer_announce_paused_at is not None and not self.state.tts_player.is_playing:
-            self._resume_timer_ring()
-
-    def _resume_timer_ring(self) -> None:
-        if self._timer_announce_paused_at is not None:
-            if self._timer_ring_start is not None:
-                # The ring limit counts ringing time, not the announcement.
-                self._timer_ring_start += time.monotonic() - self._timer_announce_paused_at
-            self._timer_announce_paused_at = None
-        self._play_timer_finished()
 
     def connection_made(self, transport) -> None:
         super().connection_made(transport)
