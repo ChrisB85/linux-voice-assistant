@@ -389,3 +389,58 @@ class TestConnectionLost:
         sat = make_satellite(tmp_path)
         sat.connection_lost(None)
         sat.state.tts_player.stop.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# Named timers
+# ---------------------------------------------------------------------------
+
+
+def _finish_timer(sat, name):
+    from aioesphomeapi.model import VoiceAssistantTimerEventType
+
+    msg = MagicMock(timer_id="t1", total_seconds=600, seconds_left=0)
+    msg.name = name
+    sat.send_messages = MagicMock()
+    sat.state.tts_player.is_playing = False
+    sat.handle_timer_event(VoiceAssistantTimerEventType.VOICE_ASSISTANT_TIMER_FINISHED, msg)
+
+
+class TestNamedTimer:
+    def test_named_timer_fires_event(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        _finish_timer(sat, "piwo")
+        (sent,), _ = sat.send_messages.call_args
+        assert sent[0].service == "esphome.lva_timer_finished"
+        assert sent[0].is_event is True
+        assert {d.key: d.value for d in sent[0].data} == {"name": "piwo"}
+
+    def test_unnamed_timer_fires_no_event(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        _finish_timer(sat, "")
+        sat.send_messages.assert_not_called()
+
+    def test_announcement_end_resumes_ring(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        _finish_timer(sat, "piwo")
+        sat.state.tts_player.play.reset_mock()
+        sat._tts_finished()
+        sat.state.tts_player.play.assert_called_once()
+        assert sat.state.stop_word.id in sat.state.active_wake_words
+
+    def test_ring_does_not_cut_announcement(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        _finish_timer(sat, "piwo")
+        sat.state.tts_player.play.reset_mock()
+        sat.state.tts_player.is_playing = True
+        sat._play_timer_finished()
+        sat.state.tts_player.play.assert_not_called()
+
+    def test_stop_during_announcement_ends_timer(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        _finish_timer(sat, "piwo")
+        sat.stop()
+        sat.state.tts_player.play.reset_mock()
+        sat._tts_finished()
+        sat.state.tts_player.play.assert_not_called()
+        assert sat.state.stop_word.id not in sat.state.active_wake_words
