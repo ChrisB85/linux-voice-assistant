@@ -62,6 +62,32 @@ class TestInit:
         assert sat.state.mic_volume_entity is not None
         assert isinstance(sat.state.mic_volume_entity, MicSettingEntity)
 
+    def test_follow_up_timeout_entity_created(self, tmp_path):
+        from linux_voice_assistant.entity import MicSettingEntity
+
+        sat = make_satellite(tmp_path)
+        entity = sat.state.follow_up_timeout_entity
+        assert isinstance(entity, MicSettingEntity)
+        assert entity.object_id == "follow_up_timeout"
+        assert entity in sat.state.entities
+
+    def test_follow_up_timeout_is_off_by_default(self, tmp_path):
+        assert make_satellite(tmp_path).state.follow_up_timeout == 0
+
+    def test_follow_up_timeout_set_from_home_assistant_is_saved(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        sat.state.follow_up_timeout_entity._set_value(8.0)
+        assert sat.state.follow_up_timeout == 8
+        assert sat.state.preferences.follow_up_timeout == 8
+        assert '"follow_up_timeout": 8' in (tmp_path / "preferences.json").read_text()
+
+    def test_follow_up_timeout_is_clamped(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        sat.state.persist_follow_up_timeout(99)
+        assert sat.state.follow_up_timeout == 15
+        sat.state.persist_follow_up_timeout(-3)
+        assert sat.state.follow_up_timeout == 0
+
     def test_pipeline_not_active_on_start(self, tmp_path):
         sat = make_satellite(tmp_path)
         assert sat._pipeline_active is False

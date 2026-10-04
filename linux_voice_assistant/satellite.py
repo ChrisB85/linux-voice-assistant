@@ -324,6 +324,28 @@ class VoiceSatelliteProtocol(APIServer):
         self.state.mic_volume_entity.update_get_value(lambda: float(self.state.mic_volume))
         self.state.mic_volume_entity.update_set_value(lambda val: self.state.persist_mic_volume(float(val)))
 
+        # Follow-up timeout: seconds without any speech before a follow-up listening ends (0 = HA's own 15 s)
+        if self.state.follow_up_timeout_entity is None:
+            self.state.follow_up_timeout_entity = MicSettingEntity(
+                server=self,
+                key=len(self.state.entities),
+                name="Follow-up Timeout",
+                object_id="follow_up_timeout",
+                min_value=0.0,
+                max_value=15.0,
+                get_value=lambda: float(self.state.follow_up_timeout),
+                set_value=lambda val: self.state.persist_follow_up_timeout(float(val)),
+                icon="mdi:timer-sand",
+            )
+            self.state.entities.append(self.state.follow_up_timeout_entity)
+        elif self.state.follow_up_timeout_entity not in self.state.entities:
+            self.state.entities.append(self.state.follow_up_timeout_entity)
+
+        self.state.follow_up_timeout_entity.server = self
+        self.state.follow_up_timeout_entity.update_get_value(lambda: float(self.state.follow_up_timeout))
+        self.state.follow_up_timeout_entity.update_set_value(lambda val: self.state.persist_follow_up_timeout(float(val)))
+        self.state.follow_up_timeout_entity.sync_with_state()
+
         # NOTE: ButtonEventSensorEntity is NOT created here unconditionally.
         # It is only materialised when a peripheral sends the register_button
         # command (see register_pending_button below), mirroring the same
@@ -345,6 +367,12 @@ class VoiceSatelliteProtocol(APIServer):
         self._is_streaming_audio = False
         self._tts_url: Optional[str] = None
         self._tts_played = False
+        # Follow-up listening gives up after a few silent seconds instead of HA's 15 (see handle_audio)
+        self._followup_stream = False  # the next audio stream is a follow-up to a question
+        self._vad_started = False  # HA's VAD heard speech in the current stream
+        self._stream_open = False
+        self._stream_started_at = 0.0
+        self._silence_limit: Optional[float] = None
         self._continue_conversation = False
         self._timer_finished = False
         self._timer_ring_start: Optional[float] = None
@@ -583,6 +611,12 @@ class VoiceSatelliteProtocol(APIServer):
                     self._processing = True
                     self.duck()
                     self.state.tts_player.play(self.state.processing_sound)
+
+        elif event_type == VoiceAssistantEventType.VOICE_ASSISTANT_STT_START:
+            self._vad_started = False
+
+        elif event_type == VoiceAssistantEventType.VOICE_ASSISTANT_STT_VAD_START:
+            self._vad_started = True
 
         elif event_type in (
             VoiceAssistantEventType.VOICE_ASSISTANT_STT_VAD_END,
@@ -867,12 +901,25 @@ class VoiceSatelliteProtocol(APIServer):
 
     # handle_audio — both channels in ONE message
     def handle_audio(self, audio_chunk: bytes, audio_chunk_2: Optional[bytes] = None) -> None:
-        if not self._is_streaming_audio or self.state.muted:
+        streaming = self._is_streaming_audio and not self.state.muted
+        if streaming and not self._stream_open:
+            # A new audio stream just opened
+            self._stream_started_at = time.monotonic()
+            self._vad_started = False
+            timeout = self.state.follow_up_timeout
+            self._silence_limit = float(timeout) if self._followup_stream and timeout > 0 else None
+            self._followup_stream = False
+        self._stream_open = streaming
+        if not streaming:
             return
         if _HAS_AUDIO_DATA2 and audio_chunk_2 is not None:
             self.send_messages([VoiceAssistantAudio(data=audio_chunk, data2=audio_chunk_2)])
         else:
             self.send_messages([VoiceAssistantAudio(data=audio_chunk)])
+        if self._silence_limit is not None and not self._vad_started and time.monotonic() - self._stream_started_at >= self._silence_limit:
+            _LOGGER.info("No speech for %.0f s in a follow-up, sending end of audio", self._silence_limit)
+            self.send_messages([VoiceAssistantAudio(end=True)])
+            self._is_streaming_audio = False
 
     # ------------------------------------------------------------------
     # Wake word / stop
@@ -1013,6 +1060,7 @@ class VoiceSatelliteProtocol(APIServer):
                     self._pipeline_active = False
                     self.unduck()
                     return
+                self._followup_stream = True
                 self.send_messages([VoiceAssistantRequest(start=True)])
                 self._is_streaming_audio = True
                 _LOGGER.debug("Continued conversation started")
