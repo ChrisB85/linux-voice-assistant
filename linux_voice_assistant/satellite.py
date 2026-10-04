@@ -50,6 +50,7 @@ from pymicro_wakeword import MicroWakeWord
 from pyopen_wakeword import OpenWakeWord
 
 from .api_server import APIServer
+from .endpointer import ShortBurstEndpointer
 from .entity import (
     ButtonEventSensorEntity,
     ButtonLockEntity,
@@ -343,6 +344,13 @@ class VoiceSatelliteProtocol(APIServer):
         # ---- Instance variables ----
 
         self._is_streaming_audio = False
+        # LVA-side end of speech for short words HA's VAD never notices (see endpointer.py)
+        self._vad_started = False  # HA's VAD heard speech in the current stream
+        self._endpointer = ShortBurstEndpointer(
+            min_peak=state.short_word_endpoint_min_level,
+            quiet_s=state.short_word_endpoint_quiet_seconds,
+        )
+        self._ep_streaming = False
         self._tts_url: Optional[str] = None
         self._tts_played = False
         self._continue_conversation = False
@@ -583,6 +591,12 @@ class VoiceSatelliteProtocol(APIServer):
                     self._processing = True
                     self.duck()
                     self.state.tts_player.play(self.state.processing_sound)
+
+        elif event_type == VoiceAssistantEventType.VOICE_ASSISTANT_STT_START:
+            self._vad_started = False
+
+        elif event_type == VoiceAssistantEventType.VOICE_ASSISTANT_STT_VAD_START:
+            self._vad_started = True
 
         elif event_type in (
             VoiceAssistantEventType.VOICE_ASSISTANT_STT_VAD_END,
@@ -867,12 +881,25 @@ class VoiceSatelliteProtocol(APIServer):
 
     # handle_audio — both channels in ONE message
     def handle_audio(self, audio_chunk: bytes, audio_chunk_2: Optional[bytes] = None) -> None:
-        if not self._is_streaming_audio or self.state.muted:
+        streaming = self._is_streaming_audio and not self.state.muted
+        if streaming and not self._ep_streaming:
+            # A new audio stream just opened: forget the previous run's detector state and HA-VAD flag.
+            self._endpointer.reset()
+            self._vad_started = False
+        self._ep_streaming = streaming
+        if not streaming:
             return
         if _HAS_AUDIO_DATA2 and audio_chunk_2 is not None:
             self.send_messages([VoiceAssistantAudio(data=audio_chunk, data2=audio_chunk_2)])
         else:
             self.send_messages([VoiceAssistantAudio(data=audio_chunk)])
+        if self.state.short_word_endpoint and self._endpointer.feed(audio_chunk, self._vad_started):
+            _LOGGER.info(
+                "Short sound at %.1fs followed by silence, HA VAD did not start: sending end of audio",
+                self._endpointer.burst_at,
+            )
+            self.send_messages([VoiceAssistantAudio(end=True)])
+            self._is_streaming_audio = False
 
     # ------------------------------------------------------------------
     # Wake word / stop

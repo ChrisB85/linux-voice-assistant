@@ -126,6 +126,9 @@ class ServerState:
     preferences_path: Path
     download_dir: Path
     continue_conversation_delay: float = 0.5  # seconds to wait after TTS before opening mic
+    short_word_endpoint: bool = False  # end the stream after a short word when HA's VAD never starts (see endpointer.py)
+    short_word_endpoint_min_level: float = 250.0  # absolute RMS (64 ms blocks) a burst must reach
+    short_word_endpoint_quiet_seconds: float = 1.0  # silence after the burst before the end of audio is sent
 
     media_player_entity: "Optional[MediaPlayerEntity]" = None
     satellite: "Optional[VoiceSatelliteProtocol]" = None
