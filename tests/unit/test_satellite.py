@@ -485,3 +485,35 @@ class TestNamedTimer:
         sat.state.tts_player.is_playing = True
         sat._play_timer_finished()
         sat.state.tts_player.play.assert_not_called()
+
+
+class TestFollowUpWakeWord:
+    def _announce(self, sat, start_conversation=True):
+        from aioesphomeapi.api_pb2 import VoiceAssistantAnnounceRequest  # type: ignore[attr-defined]
+
+        sat.state.media_player_entity = MagicMock()
+        msg = VoiceAssistantAnnounceRequest(media_id="http://x/q.mp3", text="q", start_conversation=start_conversation)
+        list(sat.handle_message(msg))
+
+    def test_entity_created(self, tmp_path):
+        from linux_voice_assistant.entity import FollowUpWakeWordEntity
+
+        sat = make_satellite(tmp_path)
+        assert isinstance(sat.state.follow_up_wake_word_entity, FollowUpWakeWordEntity)
+        assert sat.state.follow_up_wake_word_entity in sat.state.entities
+
+    def test_start_conversation_uses_the_phrase_once(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        sat.state.follow_up_wake_word_entity.value = "Alexa"
+        self._announce(sat)
+        assert sat._wake_word_phrase == "Alexa"
+        assert sat.state.follow_up_wake_word_entity.value == ""
+        self._announce(sat)
+        assert sat._wake_word_phrase == ""
+
+    def test_plain_announcement_leaves_the_phrase_alone(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        sat.state.follow_up_wake_word_entity.value = "Alexa"
+        self._announce(sat, start_conversation=False)
+        assert sat._wake_word_phrase == ""
+        assert sat.state.follow_up_wake_word_entity.value == "Alexa"

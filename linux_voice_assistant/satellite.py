@@ -57,6 +57,7 @@ from .entity import (
     ButtonEventSensorEntity,
     ButtonLockEntity,
     ContinueConversationSoundEntity,
+    FollowUpWakeWordEntity,
     LEDLightEntity,
     MediaPlayerEntity,
     MicSettingEntity,
@@ -372,6 +373,20 @@ class VoiceSatelliteProtocol(APIServer):
         self.state.follow_up_timeout_entity.update_get_value(lambda: float(self.state.follow_up_timeout))
         self.state.follow_up_timeout_entity.update_set_value(lambda val: self.state.persist_follow_up_timeout(float(val)))
         self.state.follow_up_timeout_entity.sync_with_state()
+
+        # Follow-up wake word: one-shot hint from Home Assistant, which wake word's pipeline answers the next
+        # conversation it starts itself (start_conversation / ask_question)
+        if self.state.follow_up_wake_word_entity is None:
+            self.state.follow_up_wake_word_entity = FollowUpWakeWordEntity(
+                server=self,
+                key=len(self.state.entities),
+                name="Follow-up Wake Word",
+                object_id="follow_up_wake_word",
+            )
+            self.state.entities.append(self.state.follow_up_wake_word_entity)
+        elif self.state.follow_up_wake_word_entity not in self.state.entities:
+            self.state.entities.append(self.state.follow_up_wake_word_entity)
+        self.state.follow_up_wake_word_entity.server = self
 
         # NOTE: ButtonEventSensorEntity is NOT created here unconditionally.
         # It is only materialised when a peripheral sends the register_button
@@ -763,7 +778,8 @@ class VoiceSatelliteProtocol(APIServer):
 
             self.state.active_wake_words.add(self.state.stop_word.id)
             self._continue_conversation = msg.start_conversation
-            self._wake_word_phrase = ""
+            hint = self.state.follow_up_wake_word_entity
+            self._wake_word_phrase = hint.take() if (msg.start_conversation and hint is not None) else ""
 
             self.duck()
             self._emit(LVAEvent.TTS_SPEAKING)

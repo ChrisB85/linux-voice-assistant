@@ -19,6 +19,7 @@ if TYPE_CHECKING:
         ButtonLockEntity,
         ContinueConversationSoundEntity,
         ESPHomeEntity,
+        FollowUpWakeWordEntity,
         LEDLightEntity,
         MediaPlayerEntity,
         MicSettingEntity,
@@ -171,6 +172,7 @@ class ServerState:
     mic_noise_suppression_entity: "Optional[MicSettingEntity]" = None
     mic_volume_entity: "Optional[MicSettingEntity]" = None
     follow_up_timeout_entity: "Optional[MicSettingEntity]" = None
+    follow_up_wake_word_entity: "Optional[FollowUpWakeWordEntity]" = None
     wake_words_changed: bool = False
     refractory_seconds: float = 2.0
     thinking_sound_enabled: bool = False

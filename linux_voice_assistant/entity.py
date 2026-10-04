@@ -15,6 +15,7 @@ from aioesphomeapi.api_pb2 import (  # type: ignore[attr-defined]
     ListEntitiesRequest,
     ListEntitiesSelectResponse,
     ListEntitiesSwitchResponse,
+    ListEntitiesTextResponse,
     MediaPlayerCommandRequest,
     MediaPlayerStateResponse,
     NumberCommandRequest,
@@ -24,6 +25,8 @@ from aioesphomeapi.api_pb2 import (  # type: ignore[attr-defined]
     SubscribeHomeAssistantStatesRequest,
     SwitchCommandRequest,
     SwitchStateResponse,
+    TextCommandRequest,
+    TextStateResponse,
 )
 from aioesphomeapi.model import (
     ColorMode,
@@ -517,6 +520,48 @@ class MicSettingEntity(ESPHomeEntity):
 # -----------------------------------------------------------------------------
 
 
+class FollowUpWakeWordEntity(ESPHomeEntity):
+    """One-shot hint set from Home Assistant: the wake word phrase the next follow-up listening reports.
+
+    A satellite with two assistants lets Home Assistant pick the pipeline by the wake word phrase of a stream. A
+    conversation Home Assistant starts itself (start_conversation, ask_question) has no wake word, so it always lands in
+    the first pipeline. Setting this to a wake word's phrase right before such a call makes the answer go to that
+    wake word's pipeline instead. It is consumed by the next announcement that starts a conversation.
+    """
+
+    def __init__(self, server: APIServer, key: int, name: str, object_id: str, icon: str = "mdi:account-voice") -> None:
+        ESPHomeEntity.__init__(self, server)
+        self.key = key
+        self.name = name
+        self.object_id = object_id
+        self.icon = icon
+        self.value = ""
+
+    def take(self) -> str:
+        """Return the hint and clear it (also in Home Assistant), so it applies to one conversation only."""
+        value, self.value = self.value, ""
+        if value:
+            self.server.send_messages([TextStateResponse(key=self.key, state="")])
+        return value
+
+    def handle_message(self, msg: message.Message) -> Iterable[message.Message]:
+        if isinstance(msg, TextCommandRequest) and (msg.key == self.key):
+            self.value = msg.state
+            yield TextStateResponse(key=self.key, state=self.value)
+        elif isinstance(msg, ListEntitiesRequest):
+            yield ListEntitiesTextResponse(
+                object_id=self.object_id,
+                key=self.key,
+                name=self.name,
+                entity_category=EntityCategory.CONFIG,
+                icon=self.icon,
+                min_length=0,
+                max_length=64,
+            )
+        elif isinstance(msg, SubscribeHomeAssistantStatesRequest):
+            yield TextStateResponse(key=self.key, state=self.value)
+
+
 class WakeWord1SensitivityNumberEntity(ESPHomeEntity):
     def __init__(
         self,
@@ -915,6 +960,7 @@ __all__ = [
     "MuteSwitchEntity",
     "ThinkingSoundEntity",
     "ContinueConversationSoundEntity",
+    "FollowUpWakeWordEntity",
     "LEDLightEntity",
     "ButtonEventSensorEntity",
     "ButtonLockEntity",

@@ -422,3 +422,50 @@ class TestMicSettingEntitySelect:
         msgs = list(entity.handle_message(SubscribeHomeAssistantStatesRequest()))
         select_msg = next(m for m in msgs if isinstance(m, SelectStateResponse))
         assert isinstance(select_msg.state, str)
+
+
+# ---------------------------------------------------------------------------
+# FollowUpWakeWordEntity
+# ---------------------------------------------------------------------------
+
+
+def make_follow_up_wake_word(server=None, key=7):
+    from linux_voice_assistant.entity import FollowUpWakeWordEntity
+
+    return FollowUpWakeWordEntity(server=server or make_server(), key=key, name="Follow-up Wake Word", object_id="follow_up_wake_word")
+
+
+class TestFollowUpWakeWordEntity:
+    def test_list_entities_is_a_text_entity(self):
+        from aioesphomeapi.api_pb2 import ListEntitiesTextResponse  # type: ignore[attr-defined]
+
+        responses = list(make_follow_up_wake_word().handle_message(ListEntitiesRequest()))
+        assert len(responses) == 1
+        assert isinstance(responses[0], ListEntitiesTextResponse)
+        assert responses[0].object_id == "follow_up_wake_word"
+
+    def test_command_sets_value_and_confirms(self):
+        from aioesphomeapi.api_pb2 import TextCommandRequest, TextStateResponse  # type: ignore[attr-defined]
+
+        entity = make_follow_up_wake_word()
+        responses = list(entity.handle_message(TextCommandRequest(key=7, state="Alexa")))
+        assert entity.value == "Alexa"
+        assert isinstance(responses[0], TextStateResponse) and responses[0].state == "Alexa"
+
+    def test_command_for_another_key_is_ignored(self):
+        from aioesphomeapi.api_pb2 import TextCommandRequest  # type: ignore[attr-defined]
+
+        entity = make_follow_up_wake_word()
+        assert list(entity.handle_message(TextCommandRequest(key=99, state="Alexa"))) == []
+        assert entity.value == ""
+
+    def test_take_returns_the_value_once_and_tells_home_assistant(self):
+        from aioesphomeapi.api_pb2 import TextStateResponse  # type: ignore[attr-defined]
+
+        server = make_server()
+        entity = make_follow_up_wake_word(server)
+        entity.value = "Alexa"
+        assert entity.take() == "Alexa"
+        assert entity.take() == ""
+        sent = server.send_messages.call_args.args[0]
+        assert isinstance(sent[0], TextStateResponse) and sent[0].state == ""
