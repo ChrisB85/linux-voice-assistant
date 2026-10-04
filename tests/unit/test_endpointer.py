@@ -63,3 +63,14 @@ def test_requests_end_only_once_and_reset_rearms():
     assert feed(ep, [(30, 3.0)]) is None       # already requested for this stream
     ep.reset()
     assert feed(ep, [(30, 1.0), (700, 0.2), (30, 3.0)]) is not None
+
+
+def test_sound_in_the_first_second_of_the_stream_is_ignored():
+    # the listening chime / echo of the question right after the mic opens must not look like a spoken word
+    assert feed(ShortBurstEndpointer(), [(30, 0.1), (700, 0.3), (30, 5.0)]) is None
+
+
+def test_chime_then_real_word_still_ends_after_the_word():
+    t = feed(ShortBurstEndpointer(), [(30, 0.1), (700, 0.3), (30, 1.7), (700, 0.2), (30, 3.0)])
+    assert t is not None
+    assert 2.3 + 0.9 <= t <= 2.3 + 1.2        # word ends at 2.3 s, +1 s of quiet

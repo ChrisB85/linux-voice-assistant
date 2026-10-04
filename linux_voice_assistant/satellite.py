@@ -923,7 +923,10 @@ class VoiceSatelliteProtocol(APIServer):
         else:
             self.send_messages([VoiceAssistantAudio(data=audio_chunk)])
         if self._endpointer.feed(audio_chunk, self._vad_started):
-            _LOGGER.info("Short sound followed by silence, HA VAD did not start: sending end of audio")
+            _LOGGER.info(
+                "Short sound at %.1fs followed by silence, HA VAD did not start: sending end of audio",
+                self._endpointer.burst_at,
+            )
             self.send_messages([VoiceAssistantAudio(end=True)])
             self._is_streaming_audio = False
 
