@@ -96,6 +96,7 @@ usage: __main__.py [-h] [--name NAME] [--audio-input-device AUDIO_INPUT_DEVICE] 
 | `--download-dir`                | Directory to download custom wake word models, etc.           | `local/`                             |
 | `--refractory-seconds`          | Seconds before wake word can be activated again               | 2.0                                  |
 | `--continue-conversation-delay` | Delay before mic opens for continued conversation             | 0.5                                  |
+| `--follow-up-timeout`           | Seconds of silence before a follow-up listening ends (0 = HA's 15 s) | 0                                    |
 | `--timer-max-ring-seconds`      | Seconds after which the timer stops ringing                   | 900.0                                |
 | `--wakeup-sound`                | Sound file played when wake word is detected                  | `sounds/wake_word_triggered.flac`    |
 | `--start-listening-sound`       | Sound file played when button is pressed to start listening   | `sounds/start_listening_button.flac` |

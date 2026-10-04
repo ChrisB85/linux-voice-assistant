@@ -119,6 +119,16 @@ async def main() -> None:
         help="Seconds to wait after TTS finishes before opening the mic for continued conversation (default: 0.5)",
     )
     parser.add_argument(
+        "--follow-up-timeout",
+        type=int,
+        default=0,
+        choices=list(range(16)),
+        help=(
+            "Seconds without any speech after which a follow-up listening (the assistant asked a question) ends; "
+            "0 leaves it to Home Assistant's own 15 second limit (default: 0). Also adjustable in Home Assistant"
+        ),
+    )
+    parser.add_argument(
         "--wakeup-sound",
         default=str(_SOUNDS_DIR / "wake_word_triggered.flac"),
         help="Directory and file name for wake sound (when you say the wake word)",
@@ -404,6 +414,8 @@ async def main() -> None:
 
     if args.mic_volume > 0.0:
         preferences.mic_volume = args.mic_volume
+    if args.follow_up_timeout > 0:
+        preferences.follow_up_timeout = args.follow_up_timeout
     if args.mic_auto_gain > 0:
         preferences.mic_auto_gain = args.mic_auto_gain
 
@@ -457,6 +469,7 @@ async def main() -> None:
         stop_word_threshold=initial_threshold,
         button_controls_locked=initial_button_controls_locked,
         mic_volume=preferences.mic_volume,
+        follow_up_timeout=preferences.follow_up_timeout,
         mic_auto_gain=preferences.mic_auto_gain,
         mic_noise_suppression=preferences.mic_noise_suppression,
         audio_input_channels=args.audio_input_channels,
