@@ -77,7 +77,12 @@ PROTO_TO_MESSAGE_TYPE = {v: k for k, v in MESSAGE_TYPE_TO_PROTO.items()}
 _HAS_AUDIO_DATA2 = "data2" in {f.name for f in VoiceAssistantAudio.DESCRIPTOR.fields}
 
 
+# Seconds without any speech after which a follow-up listening (the assistant asked a question) is ended
+FOLLOWUP_NO_SPEECH_S = 5.0
+
+
 class VoiceSatelliteProtocol(APIServer):
+    _followup_stream = False
 
     def __init__(self, state: ServerState) -> None:
         super().__init__(state.name)
@@ -915,6 +920,9 @@ class VoiceSatelliteProtocol(APIServer):
             # A new audio stream just opened: forget the previous run's detector state and HA-VAD flag.
             self._endpointer.reset()
             self._vad_started = False
+            # A follow-up (the assistant just asked something) gives up after a few silent seconds, not HA's 15.
+            self._endpointer.no_speech_s = FOLLOWUP_NO_SPEECH_S if self._followup_stream else None
+            self._followup_stream = False
         self._ep_streaming = streaming
         if not streaming:
             return
@@ -923,10 +931,13 @@ class VoiceSatelliteProtocol(APIServer):
         else:
             self.send_messages([VoiceAssistantAudio(data=audio_chunk)])
         if self._endpointer.feed(audio_chunk, self._vad_started):
-            _LOGGER.info(
-                "Short sound at %.1fs followed by silence, HA VAD did not start: sending end of audio",
-                self._endpointer.burst_at,
-            )
+            if self._endpointer.silent_end:
+                _LOGGER.info("No speech in a follow-up, HA VAD did not start: sending end of audio")
+            else:
+                _LOGGER.info(
+                    "Short sound at %.1fs followed by silence, HA VAD did not start: sending end of audio",
+                    self._endpointer.burst_at,
+                )
             self.send_messages([VoiceAssistantAudio(end=True)])
             self._is_streaming_audio = False
 
@@ -1074,6 +1085,7 @@ class VoiceSatelliteProtocol(APIServer):
             _LOGGER.debug("Continuing conversation after %.2fs settle delay", self.state.continue_conversation_delay)
 
             def _open_mic() -> None:
+                self._followup_stream = True
                 self.send_messages([VoiceAssistantRequest(start=True, wake_word_phrase=self._wake_word_phrase)])
                 self._is_streaming_audio = True
                 _LOGGER.debug("Continued conversation started")

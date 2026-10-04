@@ -8,7 +8,7 @@ audio stream and runs STT on what it has. Once HA's VAD has started it stays out
 """
 
 import statistics
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -24,11 +24,13 @@ class ShortBurstEndpointer:
         quiet_s: float = 1.0,       # silence after the burst before the end is requested
         history_s: float = 20.0,
         ignore_s: float = 1.0,      # the chime / echo of the question right after the mic opens is not a spoken word
+        no_speech_s: Optional[float] = None,  # end a stream with no speech at all after this long (None: leave it to HA's 15 s)
     ) -> None:
         self._min_peak = min_peak
         self._factor = factor
         self._quiet_s = quiet_s
         self._ignore_s = ignore_s
+        self.no_speech_s = no_speech_s
         self._max_blocks = int(history_s * RATE / 1024) + 1
         self.reset()
 
@@ -39,6 +41,7 @@ class ShortBurstEndpointer:
         self._burst = False
         self._quiet = 0.0
         self._requested = False
+        self.silent_end = False  # the end was requested because nothing was said at all (no_speech_s)
 
     def feed(self, chunk: bytes, ha_vad_started: bool) -> bool:
         """Feed one microphone block; True exactly once per stream when the end of audio should be sent."""
@@ -55,6 +58,10 @@ class ShortBurstEndpointer:
         self._elapsed += seconds
         if started < self._ignore_s:
             return False
+        if not self._burst and self.no_speech_s is not None and self._elapsed >= self.no_speech_s and level < threshold:
+            self._requested = True
+            self.silent_end = True
+            return True
         if level >= threshold:
             if not self._burst:
                 self.burst_at = started

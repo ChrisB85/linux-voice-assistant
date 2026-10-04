@@ -82,3 +82,20 @@ def test_muted_sends_nothing():
     s.state.muted = True
     _speak_a_short_word(s)
     assert s.send_messages.call_count == 0
+
+
+def test_follow_up_stream_ends_after_five_seconds_without_speech():
+    s = _satellite()
+    s._followup_stream = True
+    for _ in range(int(round(8.0 / 0.064))):
+        s.handle_audio(block(30))
+    assert _ends(s) == 1
+    assert not s._is_streaming_audio
+    assert not s._followup_stream   # one-shot: the next stream is a normal one
+
+
+def test_normal_stream_has_no_silence_timeout():
+    s = _satellite()
+    for _ in range(int(round(8.0 / 0.064))):
+        s.handle_audio(block(30))
+    assert _ends(s) == 0

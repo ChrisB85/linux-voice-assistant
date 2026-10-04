@@ -74,3 +74,25 @@ def test_chime_then_real_word_still_ends_after_the_word():
     t = feed(ShortBurstEndpointer(), [(30, 0.1), (700, 0.3), (30, 1.7), (700, 0.2), (30, 3.0)])
     assert t is not None
     assert 2.3 + 0.9 <= t <= 2.3 + 1.2        # word ends at 2.3 s, +1 s of quiet
+
+
+def test_no_speech_timeout_ends_a_silent_stream():
+    # nobody answers (a chime at the start only): stop after no_speech_s instead of HA's 15 s
+    t = feed(ShortBurstEndpointer(no_speech_s=5.0), [(30, 0.1), (2800, 0.4), (30, 12.0)])
+    assert t is not None
+    assert 4.9 <= t <= 5.2
+
+
+def test_no_speech_timeout_is_off_by_default():
+    assert feed(ShortBurstEndpointer(), [(30, 0.1), (2800, 0.4), (30, 12.0)]) is None
+
+
+def test_no_speech_timeout_does_not_cut_a_word_in_progress():
+    # speech at 4.8 s still going when 5 s passes: the burst rule decides, not the timeout
+    assert feed(ShortBurstEndpointer(no_speech_s=5.0), [(30, 4.8), (700, 1.5)]) is None
+
+
+def test_no_speech_timeout_leaves_the_short_word_rule_alone():
+    t = feed(ShortBurstEndpointer(no_speech_s=5.0), [(30, 2.0), (700, 0.2), (30, 6.0)])
+    assert t is not None
+    assert 2.2 + 0.9 <= t <= 2.2 + 1.2
