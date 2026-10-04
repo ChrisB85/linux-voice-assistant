@@ -29,6 +29,7 @@ from aioesphomeapi.api_pb2 import (  # type: ignore[attr-defined]
     SubscribeHomeAssistantStatesRequest,
     SubscribeStatesRequest,
     SwitchCommandRequest,
+    TextCommandRequest,
     VoiceAssistantAnnounceFinished,
     VoiceAssistantAnnounceRequest,
     VoiceAssistantAudio,
@@ -811,7 +812,7 @@ class VoiceSatelliteProtocol(APIServer):
                 yield from entity.handle_message(SubscribeHomeAssistantStatesRequest())
         elif isinstance(
             msg,
-            (ListEntitiesRequest, SubscribeHomeAssistantStatesRequest, MediaPlayerCommandRequest, SwitchCommandRequest, NumberCommandRequest, SelectCommandRequest, LightCommandRequest),
+            (ListEntitiesRequest, SubscribeHomeAssistantStatesRequest, MediaPlayerCommandRequest, SwitchCommandRequest, NumberCommandRequest, SelectCommandRequest, TextCommandRequest, LightCommandRequest),
         ):
             for entity in self.state.entities:
                 yield from entity.handle_message(msg)

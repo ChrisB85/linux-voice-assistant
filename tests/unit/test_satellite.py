@@ -502,6 +502,15 @@ class TestFollowUpWakeWord:
         assert isinstance(sat.state.follow_up_wake_word_entity, FollowUpWakeWordEntity)
         assert sat.state.follow_up_wake_word_entity in sat.state.entities
 
+    def test_text_command_from_home_assistant_reaches_the_entity(self, tmp_path):
+        from aioesphomeapi.api_pb2 import TextCommandRequest, TextStateResponse  # type: ignore[attr-defined]
+
+        sat = make_satellite(tmp_path)
+        entity = sat.state.follow_up_wake_word_entity
+        responses = list(sat.handle_message(TextCommandRequest(key=entity.key, state="Alexa")))
+        assert entity.value == "Alexa"
+        assert any(isinstance(r, TextStateResponse) and r.state == "Alexa" for r in responses)
+
     def test_start_conversation_uses_the_phrase_once(self, tmp_path):
         sat = make_satellite(tmp_path)
         sat.state.follow_up_wake_word_entity.value = "Alexa"
