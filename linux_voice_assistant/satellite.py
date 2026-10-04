@@ -77,10 +77,6 @@ PROTO_TO_MESSAGE_TYPE = {v: k for k, v in MESSAGE_TYPE_TO_PROTO.items()}
 _HAS_AUDIO_DATA2 = "data2" in {f.name for f in VoiceAssistantAudio.DESCRIPTOR.fields}
 
 
-# Seconds without any speech after which a follow-up listening (the assistant asked a question) is ended
-FOLLOWUP_NO_SPEECH_S = 5.0
-
-
 class VoiceSatelliteProtocol(APIServer):
     _followup_stream = False
 
@@ -354,6 +350,28 @@ class VoiceSatelliteProtocol(APIServer):
         self.state.mic_volume_entity.server = self
         self.state.mic_volume_entity.update_get_value(lambda: float(self.state.mic_volume))
         self.state.mic_volume_entity.update_set_value(lambda val: self.state.persist_mic_volume(float(val)))
+
+        # Follow-up timeout: seconds without any speech before a follow-up listening is ended (0 = HA's own 15 s)
+        if self.state.follow_up_timeout_entity is None:
+            self.state.follow_up_timeout_entity = MicSettingEntity(
+                server=self,
+                key=len(self.state.entities),
+                name="Follow-up Timeout",
+                object_id="follow_up_timeout",
+                min_value=0.0,
+                max_value=15.0,
+                get_value=lambda: float(self.state.follow_up_timeout),
+                set_value=lambda val: self.state.persist_follow_up_timeout(float(val)),
+                icon="mdi:timer-sand",
+            )
+            self.state.entities.append(self.state.follow_up_timeout_entity)
+        elif self.state.follow_up_timeout_entity not in self.state.entities:
+            self.state.entities.append(self.state.follow_up_timeout_entity)
+
+        self.state.follow_up_timeout_entity.server = self
+        self.state.follow_up_timeout_entity.update_get_value(lambda: float(self.state.follow_up_timeout))
+        self.state.follow_up_timeout_entity.update_set_value(lambda val: self.state.persist_follow_up_timeout(float(val)))
+        self.state.follow_up_timeout_entity.sync_with_state()
 
         # NOTE: ButtonEventSensorEntity is NOT created here unconditionally.
         # It is only materialised when a peripheral sends the register_button
@@ -921,7 +939,8 @@ class VoiceSatelliteProtocol(APIServer):
             self._endpointer.reset()
             self._vad_started = False
             # A follow-up (the assistant just asked something) gives up after a few silent seconds, not HA's 15.
-            self._endpointer.no_speech_s = FOLLOWUP_NO_SPEECH_S if self._followup_stream else None
+            timeout = self.state.follow_up_timeout
+            self._endpointer.no_speech_s = float(timeout) if self._followup_stream and timeout > 0 else None
             self._followup_stream = False
         self._ep_streaming = streaming
         if not streaming:

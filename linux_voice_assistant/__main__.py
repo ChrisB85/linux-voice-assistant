@@ -462,6 +462,7 @@ async def main() -> None:
         stop_word_threshold=initial_threshold,
         button_controls_locked=initial_button_controls_locked,
         mic_volume=preferences.mic_volume,
+        follow_up_timeout=preferences.follow_up_timeout,
         mic_auto_gain=preferences.mic_auto_gain,
         mic_noise_suppression=preferences.mic_noise_suppression,
         audio_input_channels=args.audio_input_channels,

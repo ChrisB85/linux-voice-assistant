@@ -16,7 +16,7 @@ def block(rms: int) -> bytes:
 
 def _satellite() -> VoiceSatelliteProtocol:
     s = VoiceSatelliteProtocol.__new__(VoiceSatelliteProtocol)
-    s.state = SimpleNamespace(muted=False)  # type: ignore[assignment]
+    s.state = SimpleNamespace(muted=False, follow_up_timeout=5)  # type: ignore[assignment]
     s.send_messages = MagicMock()  # type: ignore[method-assign]
     s._is_streaming_audio = True
     s._vad_started = False
@@ -96,6 +96,24 @@ def test_follow_up_stream_ends_after_five_seconds_without_speech():
 
 def test_normal_stream_has_no_silence_timeout():
     s = _satellite()
+    for _ in range(int(round(8.0 / 0.064))):
+        s.handle_audio(block(30))
+    assert _ends(s) == 0
+
+
+def test_follow_up_timeout_comes_from_the_setting():
+    s = _satellite()
+    s.state.follow_up_timeout = 3
+    s._followup_stream = True
+    for _ in range(int(round(4.5 / 0.064))):
+        s.handle_audio(block(30))
+    assert _ends(s) == 1
+
+
+def test_follow_up_timeout_zero_leaves_it_to_home_assistant():
+    s = _satellite()
+    s.state.follow_up_timeout = 0
+    s._followup_stream = True
     for _ in range(int(round(8.0 / 0.064))):
         s.handle_audio(block(30))
     assert _ends(s) == 0
