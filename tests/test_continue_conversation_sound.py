@@ -25,6 +25,7 @@ def _satellite(continue_conversation_sound: str, listen_during_wake_sound: bool 
     satellite._wake_word_phrase = ""
     satellite._is_streaming_audio = False
     satellite._pipeline_active = True
+    satellite._timer_finished = False  # set in __init__; the named-timer change reads it in _tts_finished
     return satellite
 
 
