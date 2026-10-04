@@ -96,6 +96,9 @@ usage: __main__.py [-h] [--name NAME] [--audio-input-device AUDIO_INPUT_DEVICE] 
 | `--download-dir`                | Directory to download custom wake word models, etc.           | `local/`                             |
 | `--refractory-seconds`          | Seconds before wake word can be activated again               | 2.0                                  |
 | `--continue-conversation-delay` | Delay before mic opens for continued conversation             | 0.5                                  |
+| `--short-word-endpoint`         | End the stream ~1 s after a short word ("yes", "two") that HA's VAD misses | False                                |
+| `--short-word-endpoint-min-level` | RMS level a burst must reach to count as a word (microphone dependent) | 250                                  |
+| `--short-word-endpoint-quiet-seconds` | Seconds of silence after the burst before the audio is ended | 1.0                                  |
 | `--timer-max-ring-seconds`      | Seconds after which the timer stops ringing                   | 900.0                                |
 | `--wakeup-sound`                | Sound file played when wake word is detected                  | `sounds/wake_word_triggered.flac`    |
 | `--start-listening-sound`       | Sound file played when button is pressed to start listening   | `sounds/start_listening_button.flac` |

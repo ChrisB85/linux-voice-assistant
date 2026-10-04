@@ -119,6 +119,23 @@ async def main() -> None:
         help="Seconds to wait after TTS finishes before opening the mic for continued conversation (default: 0.5)",
     )
     parser.add_argument(
+        "--short-word-endpoint",
+        action="store_true",
+        help="End the audio stream about a second after a short word (yes, no, two) when HA's voice activity detection never starts, instead of waiting for its 15 second timeout",
+    )
+    parser.add_argument(
+        "--short-word-endpoint-min-level",
+        type=float,
+        default=250.0,
+        help="Short word endpoint: RMS level a burst of sound must reach (64 ms blocks), depends on microphone gain (default: 250)",
+    )
+    parser.add_argument(
+        "--short-word-endpoint-quiet-seconds",
+        type=float,
+        default=1.0,
+        help="Short word endpoint: seconds of silence after the burst before the audio is ended (default: 1.0)",
+    )
+    parser.add_argument(
         "--wakeup-sound",
         default=str(_SOUNDS_DIR / "wake_word_triggered.flac"),
         help="Directory and file name for wake sound (when you say the wake word)",
@@ -451,6 +468,9 @@ async def main() -> None:
         preferences_path=preferences_path,
         refractory_seconds=args.refractory_seconds,
         continue_conversation_delay=args.continue_conversation_delay,
+        short_word_endpoint=args.short_word_endpoint,
+        short_word_endpoint_min_level=args.short_word_endpoint_min_level,
+        short_word_endpoint_quiet_seconds=args.short_word_endpoint_quiet_seconds,
         output_only=args.output_only,
         download_dir=args.download_dir,
         volume=initial_volume,

@@ -62,6 +62,17 @@ class TestInit:
         assert sat.state.mic_volume_entity is not None
         assert isinstance(sat.state.mic_volume_entity, MicSettingEntity)
 
+    def test_short_word_endpoint_is_off_with_documented_defaults(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        assert sat.state.short_word_endpoint is False
+        assert sat.state.short_word_endpoint_min_level == 250.0
+        assert sat.state.short_word_endpoint_quiet_seconds == 1.0
+
+    def test_endpointer_uses_the_configured_levels(self, tmp_path):
+        sat = make_satellite(tmp_path, {"short_word_endpoint_min_level": 400.0, "short_word_endpoint_quiet_seconds": 0.5})
+        assert sat._endpointer._min_peak == 400.0
+        assert sat._endpointer._quiet_s == 0.5
+
     def test_pipeline_not_active_on_start(self, tmp_path):
         sat = make_satellite(tmp_path)
         assert sat._pipeline_active is False
