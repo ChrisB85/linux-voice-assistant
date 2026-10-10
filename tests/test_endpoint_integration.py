@@ -16,7 +16,7 @@ def block(rms: int) -> bytes:
 
 def _satellite() -> VoiceSatelliteProtocol:
     s = VoiceSatelliteProtocol.__new__(VoiceSatelliteProtocol)
-    s.state = SimpleNamespace(muted=False, follow_up_timeout=5)  # type: ignore[assignment]
+    s.state = SimpleNamespace(muted=False, follow_up_timeout=5, listen_timeout=0)  # type: ignore[assignment]
     s.send_messages = MagicMock()  # type: ignore[method-assign]
     s._is_streaming_audio = True
     s._vad_started = False
@@ -60,7 +60,7 @@ def test_ha_vad_started_means_no_end():
     for rms, secs in [(30, 0.5), (700, 0.2)]:
         for _ in range(int(round(secs / 0.064))):
             s.handle_audio(block(rms))
-    s._vad_started = True                     # HA noticed the speech
+    s._vad_started = True  # HA noticed the speech
     for _ in range(60):
         s.handle_audio(block(30))
     assert _ends(s) == 0 and s._is_streaming_audio
@@ -71,8 +71,8 @@ def test_new_stream_rearms_and_clears_the_vad_flag():
     _speak_a_short_word(s)
     assert _ends(s) == 1
     s.send_messages.reset_mock()
-    s._vad_started = True                     # left over from the previous run
-    s._is_streaming_audio = True              # a new stream opens (e.g. the retry)
+    s._vad_started = True  # left over from the previous run
+    s._is_streaming_audio = True  # a new stream opens (e.g. the retry)
     _speak_a_short_word(s)
     assert _ends(s) == 1
 
@@ -91,7 +91,7 @@ def test_follow_up_stream_ends_after_five_seconds_without_speech():
         s.handle_audio(block(30))
     assert _ends(s) == 1
     assert not s._is_streaming_audio
-    assert not s._followup_stream   # one-shot: the next stream is a normal one
+    assert not s._followup_stream  # one-shot: the next stream is a normal one
 
 
 def test_normal_stream_has_no_silence_timeout():
@@ -115,5 +115,33 @@ def test_follow_up_timeout_zero_leaves_it_to_home_assistant():
     s.state.follow_up_timeout = 0
     s._followup_stream = True
     for _ in range(int(round(8.0 / 0.064))):
+        s.handle_audio(block(30))
+    assert _ends(s) == 0
+
+
+def test_listen_timeout_ends_a_silent_wake_word_stream():
+    s = _satellite()
+    s.state.listen_timeout = 3
+    s._followup_stream = False
+    for _ in range(int(round(4.5 / 0.064))):
+        s.handle_audio(block(30))
+    assert _ends(s) == 1
+
+
+def test_listen_timeout_zero_leaves_wake_word_stream_to_home_assistant():
+    s = _satellite()
+    s.state.listen_timeout = 0
+    s._followup_stream = False
+    for _ in range(int(round(8.0 / 0.064))):
+        s.handle_audio(block(30))
+    assert _ends(s) == 0
+
+
+def test_follow_up_keeps_its_own_timeout():
+    s = _satellite()
+    s.state.listen_timeout = 3
+    s.state.follow_up_timeout = 6
+    s._followup_stream = True
+    for _ in range(int(round(4.5 / 0.064))):
         s.handle_audio(block(30))
     assert _ends(s) == 0

@@ -98,6 +98,7 @@ class Preferences:
     mic_noise_suppression: int = 0
     mic_volume: int = 100  # 1–100, default maximum
     follow_up_timeout: int = 5  # seconds of silence before a follow-up listening is ended, 0 = leave it to HA
+    listen_timeout: int = 0  # seconds of silence before a wake word / button listening is ended, 0 = leave it to HA
 
 
 @dataclass
@@ -174,6 +175,7 @@ class ServerState:
     mic_noise_suppression_entity: "Optional[MicSettingEntity]" = None
     mic_volume_entity: "Optional[MicSettingEntity]" = None
     follow_up_timeout_entity: "Optional[MicSettingEntity]" = None
+    listen_timeout_entity: "Optional[MicSettingEntity]" = None
     follow_up_wake_word_entity: "Optional[FollowUpWakeWordEntity]" = None
     wake_words_changed: bool = False
     refractory_seconds: float = 2.0
@@ -194,6 +196,7 @@ class ServerState:
     mic_noise_suppression: int = 0
     mic_volume: int = 100  # 1–100, default maximum
     follow_up_timeout: int = 5  # seconds, 0 = leave it to HA's own 15 s limit
+    listen_timeout: int = 0  # seconds, 0 = leave it to HA's own 15 s limit
     audio_input_channels: int = 2  # number of mic channels to stream
     timer_max_ring_seconds: float = 900.0
     listen_during_wake_sound: bool = False
@@ -286,6 +289,17 @@ class ServerState:
         self.follow_up_timeout = value
         self.preferences.follow_up_timeout = value
         _LOGGER.info("Saving follow_up_timeout %s to %s", value, self.preferences_path)
+        self.save_preferences()
+
+    def persist_listen_timeout(self, seconds: float) -> None:
+        """Persist how long a wake word / button listening waits for any speech (0–15 s, 0 = HA's own limit)."""
+        value = max(0, min(15, int(round(seconds))))
+        if self.listen_timeout == value and self.preferences.listen_timeout == value:
+            return
+
+        self.listen_timeout = value
+        self.preferences.listen_timeout = value
+        _LOGGER.info("Saving listen_timeout %s to %s", value, self.preferences_path)
         self.save_preferences()
 
     def persist_mic_volume(self, volume: float) -> None:

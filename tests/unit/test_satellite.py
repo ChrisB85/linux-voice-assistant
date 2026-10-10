@@ -92,6 +92,24 @@ class TestInit:
         sat.state.persist_follow_up_timeout(-3)
         assert sat.state.follow_up_timeout == 0
 
+    def test_listen_timeout_entity_created(self, tmp_path):
+        from linux_voice_assistant.entity import MicSettingEntity
+
+        sat = make_satellite(tmp_path)
+        entity = sat.state.listen_timeout_entity
+        assert isinstance(entity, MicSettingEntity)
+        assert entity.object_id == "listen_timeout"
+        assert entity in sat.state.entities
+        assert sat.state.listen_timeout == 0  # default leaves it to Home Assistant
+
+    def test_listen_timeout_set_from_home_assistant_is_saved(self, tmp_path):
+        sat = make_satellite(tmp_path)
+        sat.state.listen_timeout_entity._set_value(3.0)
+        assert sat.state.listen_timeout == 3
+        assert '"listen_timeout": 3' in (tmp_path / "preferences.json").read_text()
+        sat.state.persist_listen_timeout(99)
+        assert sat.state.listen_timeout == 15
+
     def test_pipeline_not_active_on_start(self, tmp_path):
         sat = make_satellite(tmp_path)
         assert sat._pipeline_active is False

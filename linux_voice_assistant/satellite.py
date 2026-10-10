@@ -375,6 +375,28 @@ class VoiceSatelliteProtocol(APIServer):
         self.state.follow_up_timeout_entity.update_set_value(lambda val: self.state.persist_follow_up_timeout(float(val)))
         self.state.follow_up_timeout_entity.sync_with_state()
 
+        # Listen timeout: the same limit for a listening started by the wake word or the button (0 = HA's own 15 s)
+        if self.state.listen_timeout_entity is None:
+            self.state.listen_timeout_entity = MicSettingEntity(
+                server=self,
+                key=len(self.state.entities),
+                name="Listen Timeout",
+                object_id="listen_timeout",
+                min_value=0.0,
+                max_value=15.0,
+                get_value=lambda: float(self.state.listen_timeout),
+                set_value=lambda val: self.state.persist_listen_timeout(float(val)),
+                icon="mdi:timer-sand",
+            )
+            self.state.entities.append(self.state.listen_timeout_entity)
+        elif self.state.listen_timeout_entity not in self.state.entities:
+            self.state.entities.append(self.state.listen_timeout_entity)
+
+        self.state.listen_timeout_entity.server = self
+        self.state.listen_timeout_entity.update_get_value(lambda: float(self.state.listen_timeout))
+        self.state.listen_timeout_entity.update_set_value(lambda val: self.state.persist_listen_timeout(float(val)))
+        self.state.listen_timeout_entity.sync_with_state()
+
         # Follow-up wake word: one-shot hint from Home Assistant, which wake word's pipeline answers the next
         # conversation it starts itself (start_conversation / ask_question)
         if self.state.follow_up_wake_word_entity is None:
@@ -964,9 +986,9 @@ class VoiceSatelliteProtocol(APIServer):
             # A new audio stream just opened: forget the previous run's detector state and HA-VAD flag.
             self._endpointer.reset()
             self._vad_started = False
-            # A follow-up (the assistant just asked something) gives up after a few silent seconds, not HA's 15.
-            timeout = self.state.follow_up_timeout
-            self._endpointer.no_speech_s = float(timeout) if self._followup_stream and timeout > 0 else None
+            # A silent listening gives up after a few seconds, not HA's 15; a follow-up (the assistant just asked something) has its own limit.
+            timeout = self.state.follow_up_timeout if self._followup_stream else self.state.listen_timeout
+            self._endpointer.no_speech_s = float(timeout) if timeout > 0 else None
             self._followup_stream = False
         self._ep_streaming = streaming
         if not streaming:
@@ -977,7 +999,7 @@ class VoiceSatelliteProtocol(APIServer):
             self.send_messages([VoiceAssistantAudio(data=audio_chunk)])
         if self._endpointer.feed(audio_chunk, self._vad_started):
             if self._endpointer.silent_end:
-                _LOGGER.info("No speech in a follow-up, HA VAD did not start: sending end of audio")
+                _LOGGER.info("No speech, HA VAD did not start: sending end of audio")
             else:
                 _LOGGER.info(
                     "Short sound at %.1fs followed by silence, HA VAD did not start: sending end of audio",
