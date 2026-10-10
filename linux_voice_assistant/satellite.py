@@ -415,6 +415,7 @@ class VoiceSatelliteProtocol(APIServer):
         self._tts_url: Optional[str] = None
         self._tts_played = False
         self._continue_conversation = False
+        self._no_speech_error = False
         # Phrase that started the conversation; HA picks the pipeline slot from it,
         # so a follow-up without it would fall back to slot 1.
         self._wake_word_phrase = ""
@@ -651,6 +652,7 @@ class VoiceSatelliteProtocol(APIServer):
             self._tts_played = False
             self._continue_conversation = False
             self._pipeline_active = True
+            self._no_speech_error = False
 
         elif event_type == VoiceAssistantEventType.VOICE_ASSISTANT_INTENT_START:
             self._emit(LVAEvent.THINKING)
@@ -703,8 +705,13 @@ class VoiceSatelliteProtocol(APIServer):
         elif event_type == VoiceAssistantEventType.VOICE_ASSISTANT_RUN_END:
             self._is_streaming_audio = False
             if not self._tts_played:
-                self._pipeline_active = False
-                self._tts_finished()
+                if self._no_speech_error and not self._timer_finished:
+                    # Pipeline stays active while the sound plays, so the speaker cannot wake the mic.
+                    self._no_speech_error = False
+                    self.state.tts_player.play(self.state.no_speech_sound, done_callback=self._tts_finished)
+                else:
+                    self._pipeline_active = False
+                    self._tts_finished()
             # When TTS is playing, keep _pipeline_active = True to block
             # false wake word detections from speaker audio feedback.
             # _tts_finished() callback will clear it when playback ends.
@@ -713,6 +720,8 @@ class VoiceSatelliteProtocol(APIServer):
 
         elif event_type == VoiceAssistantEventType.VOICE_ASSISTANT_ERROR:
             self._emit(LVAEvent.PIPELINE_ERROR)
+            if self.state.no_speech_sound and data.get("code") in self.state.no_speech_sound_codes:
+                self._no_speech_error = True
 
     # ------------------------------------------------------------------
     # Timer event handler

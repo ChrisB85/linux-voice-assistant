@@ -132,6 +132,8 @@ class ServerState:
     continue_conversation_delay: float = 0.5  # seconds to wait after TTS before opening mic
 
     continue_conversation_sound: str = ""
+    no_speech_sound: str = ""  # empty = disabled
+    no_speech_sound_codes: Set[str] = field(default_factory=set)
     media_player_entity: "Optional[MediaPlayerEntity]" = None
     satellite: "Optional[VoiceSatelliteProtocol]" = None
     connections: "List[VoiceSatelliteProtocol]" = field(default_factory=list)

@@ -153,6 +153,16 @@ async def main() -> None:
         help="Sound to play when the microphone re-opens for a follow-up question, if enabled from Home Assistant (default: same as --wakeup-sound)",
     )
     parser.add_argument(
+        "--no-speech-sound",
+        default="",
+        help="Sound to play when listening ends without recognized speech (empty = disabled; bundled: " + str(_SOUNDS_DIR / "no_speech.flac") + ")",
+    )
+    parser.add_argument(
+        "--no-speech-sound-codes",
+        default="stt-no-text-recognized",
+        help="Comma-separated Home Assistant pipeline error codes that trigger --no-speech-sound",
+    )
+    parser.add_argument(
         "--button-double-press-sound",
         default=str(_SOUNDS_DIR / "button_double_press.flac"),
         help="Sound to play for button double press",
@@ -452,6 +462,8 @@ async def main() -> None:
         button_triple_press_sound=args.button_triple_press_sound,
         button_long_press_sound=args.button_long_press_sound,
         continue_conversation_sound=(args.wakeup_sound if args.continue_conversation_sound is None else args.continue_conversation_sound),
+        no_speech_sound=args.no_speech_sound,
+        no_speech_sound_codes={code.strip() for code in args.no_speech_sound_codes.split(",") if code.strip()},
         preferences=preferences,
         preferences_path=preferences_path,
         refractory_seconds=args.refractory_seconds,
