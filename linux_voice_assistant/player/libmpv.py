@@ -169,7 +169,8 @@ class LibMpvPlayer(AudioPlayer):
             # 0 = eof (end of file), 1 = stop, 2 = abort, 3 = quit, 4 = error
             is_eof = reason == 0
 
-            self._log.debug(
+            # INFO so a cut-off TTS shows in the journal whether mpv ended or was stopped.
+            self._log.info(
                 "_on_end_file: reason=%s (is_eof=%s), state=%s, has_callback=%s",
                 reason,
                 is_eof,

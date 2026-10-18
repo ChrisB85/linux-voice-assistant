@@ -1113,7 +1113,7 @@ class VoiceSatelliteProtocol(APIServer):
             # tts_player.stop() invokes the done_callback (_tts_finished),
             # so we don't call _tts_finished() again explicitly.
             self.state.tts_player.stop()
-            _LOGGER.debug("TTS response stopped manually")
+            _LOGGER.info("TTS response stopped manually")
 
     # ------------------------------------------------------------------
     # TTS
