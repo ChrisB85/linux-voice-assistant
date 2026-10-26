@@ -104,6 +104,9 @@ usage: __main__.py [-h] [--name NAME] [--audio-input-device AUDIO_INPUT_DEVICE] 
 | `--mute-sound`                  | Sound played when muting the assistant                        | `sounds/mute_switch_on.flac`         |
 | `--unmute-sound`                | Sound played when unmuting the assistant                      | `sounds/mute_switch_off.flac`        |
 | `--continue-conversation-sound` | Sound played when the mic re-opens for a follow-up question   | `--wakeup-sound`                     |
+| `--button-double-press-sound`   | Sound played on button double press                           | `sounds/button_double_press.flac`    |
+| `--button-triple-press-sound`   | Sound played on button triple press                           | `sounds/button_triple_press.flac`    |
+| `--button-long-press-sound`     | Sound played on button long press                             | `sounds/button_long_press.flac`      |
 | `--preferences-file`            | Path to preferences JSON file                                 | `preferences.json`                   |
 | `--host`                        | IP-Address for ESPHome server, use 0.0.0.0 for all            | Autodetected                         |
 | `--network-interface`           | Network interface for ESPHome server                          | Autodetected                         |
@@ -113,12 +116,15 @@ usage: __main__.py [-h] [--name NAME] [--audio-input-device AUDIO_INPUT_DEVICE] 
 | `--peripheral-host`             | Bind address for the peripheral WebSocket API                 | 0.0.0.0                              |
 | `--peripheral-port`             | Port for the peripheral WebSocket API                         | 6055                                 |
 | `--peripheral-volume-step`      | Volume change per button press, 0.0–1.0                       | %(default)s                          |
+| `--peripheral-startup-wait`     | Seconds to wait for peripherals to register entities          | 2.0                                  |
 | `--disable-peripheral-api`      | Disable the peripheral WebSocket API entirely                 | False                                |
 | `--debug`                       | Print DEBUG messages to console                               | False                                |
 | `--colored-debug`               | Print colored DEBUG messages to console                       | False                                |
 | `--output-only`                 | Enable output only mode                                       | False                                |
 
 💡 **Note:** There are detailed explanations on the controlled entities from device page in the [configuration](docs/configuration.md) file.
+
+💡 **Note:** How the assistant behaves in everyday situations (music ducking during conversations, announcements, timers, stop word, mute, volume) is described in the [behavior guide](docs/behavior.md).
 
 ## Build Information
 
