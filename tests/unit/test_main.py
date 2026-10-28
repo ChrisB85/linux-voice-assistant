@@ -309,7 +309,7 @@ class TestReconnectingRecorder:
         from linux_voice_assistant import __main__ as main_mod
 
         monkeypatch.setattr(main_mod.time, "sleep", lambda _s: None)
-        monkeypatch.setattr(main_mod.sc, "get_microphone", lambda mic_id: mic)
+        monkeypatch.setattr(main_mod, "sc", MagicMock(get_microphone=lambda mic_id: mic))
 
         block = make_audio_chunk()
         failed = self._make_recorder(**{"record.side_effect": RuntimeError("Recording failed, stream is in status FAILED")})
@@ -326,7 +326,7 @@ class TestReconnectingRecorder:
         from linux_voice_assistant import __main__ as main_mod
 
         monkeypatch.setattr(main_mod.time, "sleep", lambda _s: None)
-        monkeypatch.setattr(main_mod.sc, "get_microphone", lambda mic_id: mic)
+        monkeypatch.setattr(main_mod, "sc", MagicMock(get_microphone=lambda mic_id: mic))
 
         block = make_audio_chunk()
         failed = self._make_recorder(**{"record.side_effect": RuntimeError("Recording failed, stream is in status FAILED")})
@@ -343,7 +343,7 @@ class TestReconnectingRecorder:
 
         sleeps = []
         monkeypatch.setattr(main_mod.time, "sleep", sleeps.append)
-        monkeypatch.setattr(main_mod.sc, "get_microphone", lambda mic_id: mic)
+        monkeypatch.setattr(main_mod, "sc", MagicMock(get_microphone=lambda mic_id: mic))
 
         block = make_audio_chunk()
         failed = self._make_recorder(**{"record.side_effect": RuntimeError("Recording failed, stream is in status FAILED")})
@@ -360,7 +360,7 @@ class TestReconnectingRecorder:
 
         sleeps = []
         monkeypatch.setattr(main_mod.time, "sleep", sleeps.append)
-        monkeypatch.setattr(main_mod.sc, "get_microphone", lambda mic_id: mic)
+        monkeypatch.setattr(main_mod, "sc", MagicMock(get_microphone=lambda mic_id: mic))
 
         failed = self._make_recorder(**{"record.side_effect": RuntimeError("Recording failed, stream is in status FAILED")})
         mic = self._make_mic(failed, OSError("gone"), OSError("still gone"))
@@ -376,7 +376,7 @@ class TestReconnectingRecorder:
         from linux_voice_assistant import __main__ as main_mod
 
         get_mic = MagicMock()
-        monkeypatch.setattr(main_mod.sc, "get_microphone", get_mic)
+        monkeypatch.setattr(main_mod, "sc", MagicMock(get_microphone=get_mic))
 
         mic = MagicMock(spec=["name", "recorder"])
         mic.name = "Test Mic"
