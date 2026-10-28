@@ -172,6 +172,7 @@ Environment=XDG_RUNTIME_DIR="/run/user/<replace_with_your_user_id>"
 Environment=PULSE_COOKIE="/home/pi/linux-voice-assistant/tmp_pulse_cookie"
 Environment=PREFERENCES_FILE="/home/pi/linux-voice-assistant/preferences.json"
 # Environment=NETWORK_INTERFACE="eth0"
+# Environment=MAC_ADDRESS="02:00:00:00:00:01"
 # Environment=HOST="0.0.0.0"
 # Environment=PORT="6053"
 # Environment=AUDIO_INPUT_DEVICE="default"
@@ -198,6 +199,7 @@ Environment=PREFERENCES_FILE="/home/pi/linux-voice-assistant/preferences.json"
 # Environment=MUTE_SOUND="sounds/mute_switch_on.flac"
 # Environment=UNMUTE_SOUND="sounds/mute_switch_off.flac"
 # Environment=CONTINUE_CONVERSATION_SOUND="sounds/wake_word_triggered.flac"
+# Environment=PIPELINE_ENDED_SOUND="sounds/pipeline_ended_low.flac"
 # Environment=BUTTON_DOUBLE_PRESS_SOUND="sounds/button_double_press.flac"
 # Environment=BUTTON_TRIPLE_PRESS_SOUND="sounds/button_triple_press.flac"
 # Environment=BUTTON_LONG_PRESS_SOUND="sounds/button_long_press.flac"
@@ -209,7 +211,7 @@ Environment=PREFERENCES_FILE="/home/pi/linux-voice-assistant/preferences.json"
 # Environment=ENABLE_OUTPUT_ONLY="1"
 ExecStart=/home/pi/linux-voice-assistant/docker-entrypoint.sh
 # ExecStart=/home/pi/linux-voice-assistant/docker-entrypoint.sh --additional-parameter-if-you-want
-Restart=always
+Restart=on-failure
 RestartSec=5
 
 [Install]
@@ -273,6 +275,7 @@ The following variables can be configured in the `.env` or in the service file:
 | `LIST_DEVICES` | (optional) | Set to "1" to list audio devices instead of starting |
 | `PREFERENCES_FILE` | (optional) | Path to a custom preferences JSON file |
 | `NETWORK_INTERFACE` | Autodetected | network card for server |
+| `MAC_ADDRESS` | The network interface's | MAC address the device is known by in Home Assistant (colon separated, e.g. `02:00:00:00:00:01`). Keeps one identity across interfaces, or gives several instances on one machine each their own |
 | `HOST` | Autodetected | API server IP-Address, can be 0.0.0.0 for all interfaces, but only one network card works for MAC-ADDRESS and ESP protocol |
 | `PORT` | `6053` | API server port |
 | `AUDIO_INPUT_DEVICE` | Autodetected | Audio input device name |
@@ -299,6 +302,7 @@ The following variables can be configured in the `.env` or in the service file:
 | `MUTE_SOUND` | `sounds/mute_switch_on.flac` | Sound file for mute on |
 | `UNMUTE_SOUND` | `sounds/mute_switch_off.flac` | Sound file for mute off |
 | `CONTINUE_CONVERSATION_SOUND` | same as `WAKEUP_SOUND` | Sound file played when the mic re-opens for a follow-up question (off by default, enable with the "Follow-up Sound" switch in Home Assistant) |
+| `PIPELINE_ENDED_SOUND` | `sounds/pipeline_ended_low.flac` | Sound file to play when the voice pipeline ends without a response (e.g. no speech detected) |
 | `BUTTON_DOUBLE_PRESS_SOUND` | `sounds/button_double_press.flac` | Sound file for button double press |
 | `BUTTON_TRIPLE_PRESS_SOUND` | `sounds/button_triple_press.flac` | Sound file for button triple press |
 | `BUTTON_LONG_PRESS_SOUND` | `sounds/button_long_press.flac` | Sound file for button long press |

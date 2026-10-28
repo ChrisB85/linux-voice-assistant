@@ -26,6 +26,10 @@ if [ -n "${NETWORK_INTERFACE}" ]; then
   EXTRA_ARGS+=( "--network-interface" "$NETWORK_INTERFACE" )
 fi
 
+if [ -n "${MAC_ADDRESS}" ]; then
+  EXTRA_ARGS+=( "--mac-address" "$MAC_ADDRESS" )
+fi
+
 # IP-ADDRESS
 if [ -n "${HOST}" ]; then
   EXTRA_ARGS+=( "--host" "$HOST" )
@@ -126,6 +130,10 @@ fi
 
 if [ -n "${CONTINUE_CONVERSATION_SOUND}" ]; then
   EXTRA_ARGS+=( "--continue-conversation-sound" "$CONTINUE_CONVERSATION_SOUND" )
+fi
+
+if [ -n "${PIPELINE_ENDED_SOUND}" ]; then
+  EXTRA_ARGS+=( "--pipeline-ended-sound" "$PIPELINE_ENDED_SOUND" )
 fi
 
 if [ -n "${BUTTON_DOUBLE_PRESS_SOUND}" ]; then

@@ -3,7 +3,7 @@
 import json
 import logging
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Union
@@ -99,6 +99,19 @@ class Preferences:
     follow_up_timeout: int = 5  # seconds of silence before a follow-up listening is ended, 0 = leave it to HA
     listen_timeout: int = 0  # seconds of silence before a wake word / button listening is ended, 0 = leave it to HA
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Preferences":
+        """
+        Build preferences from a loaded preferences.json, ignoring keys this version does not know.
+        :param data: Parsed content of the preferences file.
+        """
+        known_keys = {f.name for f in fields(cls)}
+        unknown_keys = sorted(set(data) - known_keys)
+        if unknown_keys:
+            _LOGGER.warning("Ignoring unknown preferences: %s", ", ".join(unknown_keys))
+
+        return cls(**{key: value for key, value in data.items() if key in known_keys})
+
 
 @dataclass
 class ServerState:
@@ -122,6 +135,7 @@ class ServerState:
     timer_finished_sound: str
     mute_sound: str
     unmute_sound: str
+    pipeline_ended_sound: str
     button_double_press_sound: str
     button_triple_press_sound: str
     button_long_press_sound: str
@@ -131,8 +145,6 @@ class ServerState:
     continue_conversation_delay: float = 0.5  # seconds to wait after TTS before opening mic
 
     continue_conversation_sound: str = ""
-    no_speech_sound: str = ""  # empty = disabled
-    no_speech_sound_codes: Set[str] = field(default_factory=set)
     media_player_entity: "Optional[MediaPlayerEntity]" = None
     satellite: "Optional[VoiceSatelliteProtocol]" = None
     connections: "List[VoiceSatelliteProtocol]" = field(default_factory=list)
