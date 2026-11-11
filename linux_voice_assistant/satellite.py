@@ -757,6 +757,7 @@ class VoiceSatelliteProtocol(APIServer):
         elif event_type == VoiceAssistantEventType.VOICE_ASSISTANT_ERROR:
             self._emit(LVAEvent.PIPELINE_ERROR)
             if data.get("code") == _DUPLICATE_WAKE_UP_CODE:
+                _LOGGER.info("Wake word taken by another satellite")
                 self._run_taken_by_other = True
 
     # ------------------------------------------------------------------

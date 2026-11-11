@@ -210,6 +210,8 @@ class ServerState:
     audio_input_channels: int = 2  # number of mic channels to stream
     timer_max_ring_seconds: float = 900.0
     listen_during_wake_sound: bool = False
+    wake_metrics_seconds: float = 0.0  # seconds of raw microphone levels logged with each wake word (wake_metrics); 0 = off
+    wake_metrics_frame_ms: int = 20  # length of one level frame of that log
 
     def broadcast(self, msgs: "Iterable[message.Message]") -> None:
         """Send messages to every connected API client.

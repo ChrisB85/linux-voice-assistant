@@ -488,6 +488,17 @@ class TestPipelineEndedSound:
         sat.state.music_player.unduck.assert_called_once()
         assert sat._pipeline_active is False
 
+    def test_duplicate_wake_up_is_logged_for_the_wake_metrics(self, tmp_path, caplog):
+        # wake_metrics: the satellite that lost the wake word to another one says so in its log
+        import logging
+
+        from aioesphomeapi import VoiceAssistantEventType
+
+        sat = make_satellite(tmp_path)
+        with caplog.at_level(logging.INFO):
+            sat.handle_voice_event(VoiceAssistantEventType.VOICE_ASSISTANT_ERROR, {"code": "duplicate_wake_up_detected"})
+        assert "Wake word taken by another satellite" in caplog.text
+
     def test_sound_plays_again_after_a_duplicate_wake_up(self, tmp_path):
         from aioesphomeapi import VoiceAssistantEventType
 

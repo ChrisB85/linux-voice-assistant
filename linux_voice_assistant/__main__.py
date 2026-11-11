@@ -29,6 +29,7 @@ from .util import (
     resolve_mac_address,
 )
 from .wake_word import find_available_wake_words, load_stop_model, load_wake_models
+from .wake_metrics import LevelHistory, format_metrics
 from .webrtc import WebRTCProcessor
 from .zeroconf import HomeAssistantZeroconf
 
@@ -247,6 +248,18 @@ async def main() -> None:
         type=float,
         default=900.0,  # 15 minutes
         help="Seconds before a ringing timer auto-stops (default: 900)",
+    )
+    parser.add_argument(
+        "--wake-metrics-seconds",
+        type=float,
+        default=0.0,
+        help="Log the raw microphone level of this many seconds before each wake word (to compare satellites in neighbouring rooms); 0 = off",
+    )
+    parser.add_argument(
+        "--wake-metrics-frame-ms",
+        type=int,
+        default=20,
+        help="Length in milliseconds of one level frame of --wake-metrics-seconds",
     )
     parser.add_argument(
         "--listen-during-wake-sound",
@@ -505,6 +518,8 @@ async def main() -> None:
         audio_input_channels=args.audio_input_channels,
         timer_max_ring_seconds=args.timer_max_ring_seconds,
         listen_during_wake_sound=args.listen_during_wake_sound,
+        wake_metrics_seconds=args.wake_metrics_seconds,
+        wake_metrics_frame_ms=args.wake_metrics_frame_ms,
     )
 
     if fallback_used:
@@ -712,6 +727,7 @@ def process_audio(state: ServerState, mic, block_size: int):
 
     last_active: Optional[float] = None
     webrtc: Optional[WebRTCProcessor] = None
+    levels = LevelHistory(state.wake_metrics_frame_ms, state.wake_metrics_seconds) if state.wake_metrics_seconds > 0 else None
 
     try:
         _LOGGER.debug("Opening audio input device: %s", mic.name)
@@ -728,6 +744,9 @@ def process_audio(state: ServerState, mic, block_size: int):
                 for ch in range(n_channels):
                     col = raw[:, ch] if n_channels > 1 else raw.reshape(-1)
                     channel_chunks.append(_float_to_pcm16(col, mic_vol_scalar))
+
+                if levels is not None:
+                    levels.add(raw[:, 0] if n_channels > 1 else raw.reshape(-1))  # before mic volume, AGC and noise suppression
 
                 # Primary channel drives WebRTC and wake-word detection.
                 audio_chunk = channel_chunks[0]
@@ -845,6 +864,7 @@ def process_audio(state: ServerState, mic, block_size: int):
 
                     for wake_word_index, wake_word in enumerate(wake_words):
                         activated = False
+                        probability: Optional[float] = None
 
                         # Set dynamic threshold depending on wake word index
                         if wake_word_index == 0:
@@ -868,10 +888,13 @@ def process_audio(state: ServerState, mic, block_size: int):
                                 if wake_word.process_streaming(micro_input):
                                     wake_word.debug_probabilities = True
                                     activated = True
+                                    window = getattr(wake_word, "_probabilities", None)  # the sliding window the detection averaged
+                                    probability = sum(window) / len(window) if window else None
                         elif isinstance(wake_word, OpenWakeWord):
                             for oww_input in oww_inputs:
                                 for prob in wake_word.process_streaming(oww_input):
                                     if prob > threshold:
+                                        probability = prob
                                         _LOGGER.debug("Wake word '%s' activated (probability %.3f exceeded threshold %.3f)", wake_word.wake_word, prob, threshold)  # type: ignore[attr-defined]
                                         activated = True
 
@@ -879,6 +902,8 @@ def process_audio(state: ServerState, mic, block_size: int):
                             # Check refractory
                             now = time.monotonic()
                             if (last_active is None) or ((now - last_active) > state.refractory_seconds):
+                                if levels is not None:
+                                    _LOGGER.info(format_metrics(wake_word.wake_word, probability, state.wake_metrics_frame_ms, levels.levels()))  # type: ignore[union-attr]
                                 state.satellite.wakeup(wake_word)
                                 last_active = now
 
