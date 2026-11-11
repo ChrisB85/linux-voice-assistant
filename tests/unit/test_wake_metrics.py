@@ -56,3 +56,14 @@ def test_snr_needs_history_for_both_windows():
     from linux_voice_assistant.wake_metrics import wake_snr
 
     assert wake_snr([-30] * 60, 20) is None
+
+
+def test_level_is_the_word_peak_whatever_the_room():
+    # 2026-11-11 bedroom with music: its noise rose 8 dB, the SNR fell, the word's level did not
+    from linux_voice_assistant.wake_metrics import SCORES
+
+    quiet = [-64] * 50 + [-32] + [-60] * 49
+    loud = [-56] * 50 + [-32] + [-56] * 49
+    assert SCORES["level"](quiet, 20) == SCORES["level"](loud, 20) == -32.0
+    assert SCORES["snr"](loud, 20) < SCORES["snr"](quiet, 20)
+    assert SCORES["level"]([-30] * 10, 20) is None

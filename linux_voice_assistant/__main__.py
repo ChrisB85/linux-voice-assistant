@@ -31,7 +31,7 @@ from .util import (
 )
 from .wake_word import find_available_wake_words, load_stop_model, load_wake_models
 from .arbitration import Arbiter, parse_peers
-from .wake_metrics import DEFAULT_NOISE_MS, DEFAULT_WORD_MS, LevelHistory, format_metrics, wake_snr
+from .wake_metrics import DEFAULT_NOISE_MS, DEFAULT_WORD_MS, LevelHistory, format_metrics, SCORES
 from .webrtc import WebRTCProcessor
 from .zeroconf import HomeAssistantZeroconf
 
@@ -263,12 +263,18 @@ async def main() -> None:
         help="Other satellites that hear the same wake words, host[:port] comma-separated: the one that heard the word best starts the conversation, not the first to report it; empty = off",
     )
     parser.add_argument("--arbitration-port", type=int, default=6056, help="UDP port the arbitration listens on (and the peers' default port)")
+    parser.add_argument(
+        "--arbitration-score",
+        choices=["level", "snr"],
+        default="level",
+        help="What a satellite claims a wake word with: level = the word's loudest frame (needs each satellite's offset, not affected by a loud room), snr = the word over the room right before it",
+    )
     parser.add_argument("--arbitration-window-ms", type=int, default=150, help="How long a satellite waits for the peers' claims of one wake word")
     parser.add_argument(
         "--arbitration-offset-db",
         type=float,
         default=0.0,
-        help="Added to this satellite's wake word SNR before the comparison: a negative value for a microphone that hears the next rooms too well",
+        help="Added to this satellite's wake word score before the comparison: a negative value for a microphone that hears the next rooms too well",
     )
     parser.add_argument(
         "--wake-metrics-frame-ms",
@@ -535,6 +541,7 @@ async def main() -> None:
         listen_during_wake_sound=args.listen_during_wake_sound,
         wake_metrics_seconds=args.wake_metrics_seconds,
         wake_metrics_frame_ms=args.wake_metrics_frame_ms,
+        arbitration_score=args.arbitration_score,
         arbiter=(Arbiter(friendly_name, parse_peers(args.arbitration_peers, args.arbitration_port), args.arbitration_window_ms / 1000, args.arbitration_offset_db)
                  if args.arbitration_peers else None),
     )
@@ -927,8 +934,8 @@ def process_audio(state: ServerState, mic, block_size: int):
                                 if levels is not None and state.wake_metrics_seconds > 0:
                                     _LOGGER.info(format_metrics(wake_word.wake_word, probability, state.wake_metrics_frame_ms, levels.levels()))  # type: ignore[union-attr]
                                 if state.arbiter is not None and levels is not None:
-                                    snr = wake_snr(levels.levels(), state.wake_metrics_frame_ms)
-                                    state.arbiter.claim(wake_word.wake_word, snr, functools.partial(_wake_if_connected, state, wake_word))  # type: ignore[union-attr]
+                                    score = SCORES[state.arbitration_score](levels.levels(), state.wake_metrics_frame_ms)
+                                    state.arbiter.claim(wake_word.wake_word, score, functools.partial(_wake_if_connected, state, wake_word))  # type: ignore[union-attr]
                                 else:
                                     state.satellite.wakeup(wake_word)
                                 last_active = now

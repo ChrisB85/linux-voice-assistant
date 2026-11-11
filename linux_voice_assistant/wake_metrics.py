@@ -50,6 +50,14 @@ DEFAULT_NOISE_MS = 1000  # the room right before the word; earlier frames can ho
 # the satellite's own speaker plays (bedroom 2026-11-11: -94 dBFS instead of the radiator's -64)
 
 
+def wake_level(levels: List[int], frame_ms: int, word_ms: int = DEFAULT_WORD_MS) -> Optional[float]:
+    """The wake word's loudest frame (dBFS) in the last `word_ms`: unlike the SNR it does not drop when the room is loud (music in the
+    bedroom on 2026-11-11 raised its noise 8 dB and gave the hallway its wake words); the satellites' microphones differ, so it needs
+    each satellite's offset. None when the history is shorter than `word_ms`."""
+    n_word = max(1, word_ms // frame_ms)
+    return float(max(levels[-n_word:])) if len(levels) >= n_word else None
+
+
 def wake_snr(levels: List[int], frame_ms: int, word_ms: int = DEFAULT_WORD_MS, noise_ms: int = DEFAULT_NOISE_MS) -> Optional[float]:
     """How much louder the wake word was than the room right before it (dB): the loudest frame of the last `word_ms` less the median
     of the `noise_ms` before them. None when the history is too short to hold both (the satellite just started)."""
@@ -59,3 +67,6 @@ def wake_snr(levels: List[int], frame_ms: int, word_ms: int = DEFAULT_WORD_MS, n
     word = levels[-n_word:]
     before = sorted(levels[-(n_word + n_noise):-n_word])
     return float(max(word) - before[len(before) // 2])
+
+
+SCORES = {"level": wake_level, "snr": wake_snr}  # the arbitration's score of a wake word (--arbitration-score): name -> fn(levels, frame_ms)

@@ -2,7 +2,7 @@
 
 Home Assistant keeps the first satellite to report a wake word and turns the others away (duplicate_wake_up_detected). In neighbouring
 rooms that is close to random: on 2026-11-11 the hallway took 2 of 4 wake words said in the living room, reporting ~50 ms earlier.
-Here each satellite that detects a wake word sends its score (wake_metrics.wake_snr plus its own offset) to its peers over UDP, waits
+Here each satellite that detects a wake word sends its score (wake_metrics.SCORES: the word's level or its SNR, plus its own offset) to its peers over UDP, waits
 `window_s`, and starts the conversation only when no peer claimed the same word with a higher score within `window_s` before or after
 its own claim. A satellite with no peers, or whose peers are down, starts after the window as before.
 Only datagrams from the configured peers' addresses count.
@@ -102,13 +102,13 @@ class Arbiter:
         with self._lock:
             self._claims.append(claim)
 
-    def claim(self, word: str, snr: Optional[float], on_win: Callable[[], None]) -> None:
-        """Tell the peers this satellite heard `word` with this SNR and decide after the window. No SNR (too little history) or no peers:
-        `on_win` at once, as without arbitration."""
-        if snr is None or not self.peers:
+    def claim(self, word: str, score: Optional[float], on_win: Callable[[], None]) -> None:
+        """Tell the peers this satellite heard `word` with this score and decide after the window. No score (too little history) or no
+        peers: `on_win` at once, as without arbitration."""
+        if score is None or not self.peers:
             on_win()
             return
-        own = Claim(self.name, word, snr + self.offset_db, self._clock())
+        own = Claim(self.name, word, score + self.offset_db, self._clock())
         packet = json.dumps({"name": own.name, "word": own.word, "score": own.score}).encode()
         for peer in self.peers:
             try:

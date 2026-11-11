@@ -213,6 +213,7 @@ class ServerState:
     listen_during_wake_sound: bool = False
     wake_metrics_seconds: float = 0.0  # seconds of raw microphone levels logged with each wake word (wake_metrics); 0 = off
     wake_metrics_frame_ms: int = 20  # length of one level frame of that log
+    arbitration_score: str = "level"  # wake_metrics.SCORES key the arbiter claims with
     arbiter: Optional["Arbiter"] = None  # arbitration between satellites that heard one wake word; None = the first to report it wins (HA)
 
     def broadcast(self, msgs: "Iterable[message.Message]") -> None:
