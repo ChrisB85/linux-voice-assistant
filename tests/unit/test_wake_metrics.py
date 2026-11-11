@@ -43,3 +43,16 @@ def test_log_line_carries_word_probability_and_levels():
     line = format_metrics("Alexa", 0.91234, 20, [-60, -12])
     assert line == "Wake metrics: word=Alexa prob=0.912 frame_ms=20 levels=-60,-12"
     assert "prob=-" in format_metrics("Alexa", None, 20, [])
+
+
+def test_snr_is_the_word_peak_over_the_median_right_before_it():
+    from linux_voice_assistant.wake_metrics import wake_snr
+
+    levels = [-94] * 50 + [-64] * 50 + [-30] + [-60] * 49          # silence of the own speaker, the room, then the word
+    assert wake_snr(levels, 20) == 34.0                             # the silence 2 s back does not count as the room
+
+
+def test_snr_needs_history_for_both_windows():
+    from linux_voice_assistant.wake_metrics import wake_snr
+
+    assert wake_snr([-30] * 60, 20) is None

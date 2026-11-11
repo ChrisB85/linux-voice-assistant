@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         WakeWord1SensitivityNumberEntity,
         WakeWord2SensitivityNumberEntity,
     )
+    from .arbitration import Arbiter
     from .mpv_player import MpvMediaPlayer
     from .satellite import VoiceSatelliteProtocol
 
@@ -212,6 +213,7 @@ class ServerState:
     listen_during_wake_sound: bool = False
     wake_metrics_seconds: float = 0.0  # seconds of raw microphone levels logged with each wake word (wake_metrics); 0 = off
     wake_metrics_frame_ms: int = 20  # length of one level frame of that log
+    arbiter: Optional["Arbiter"] = None  # arbitration between satellites that heard one wake word; None = the first to report it wins (HA)
 
     def broadcast(self, msgs: "Iterable[message.Message]") -> None:
         """Send messages to every connected API client.

@@ -43,3 +43,19 @@ def format_metrics(word: str, probability: Optional[float], frame_ms: int, level
     """One log line per detection; `probability` is the wake word model's mean over its sliding window (None when unknown)."""
     prob = f"{probability:.3f}" if probability is not None else "-"
     return f"Wake metrics: word={word} prob={prob} frame_ms={frame_ms} levels={','.join(str(v) for v in levels)}"
+
+
+DEFAULT_WORD_MS = 1000  # the wake word ends right before its detection: its loudest frame lies in this much before it
+DEFAULT_NOISE_MS = 1000  # the room right before the word; earlier frames can hold the digital silence some microphones give while
+# the satellite's own speaker plays (bedroom 2026-11-11: -94 dBFS instead of the radiator's -64)
+
+
+def wake_snr(levels: List[int], frame_ms: int, word_ms: int = DEFAULT_WORD_MS, noise_ms: int = DEFAULT_NOISE_MS) -> Optional[float]:
+    """How much louder the wake word was than the room right before it (dB): the loudest frame of the last `word_ms` less the median
+    of the `noise_ms` before them. None when the history is too short to hold both (the satellite just started)."""
+    n_word, n_noise = max(1, word_ms // frame_ms), max(1, noise_ms // frame_ms)
+    if len(levels) < n_word + n_noise:
+        return None
+    word = levels[-n_word:]
+    before = sorted(levels[-(n_word + n_noise):-n_word])
+    return float(max(word) - before[len(before) // 2])

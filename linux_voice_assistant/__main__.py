@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 import errno
+import functools
 import json
 import logging
 import os
@@ -29,7 +30,8 @@ from .util import (
     resolve_mac_address,
 )
 from .wake_word import find_available_wake_words, load_stop_model, load_wake_models
-from .wake_metrics import LevelHistory, format_metrics
+from .arbitration import Arbiter, parse_peers
+from .wake_metrics import DEFAULT_NOISE_MS, DEFAULT_WORD_MS, LevelHistory, format_metrics, wake_snr
 from .webrtc import WebRTCProcessor
 from .zeroconf import HomeAssistantZeroconf
 
@@ -254,6 +256,19 @@ async def main() -> None:
         type=float,
         default=0.0,
         help="Log the raw microphone level of this many seconds before each wake word (to compare satellites in neighbouring rooms); 0 = off",
+    )
+    parser.add_argument(
+        "--arbitration-peers",
+        default="",
+        help="Other satellites that hear the same wake words, host[:port] comma-separated: the one that heard the word best starts the conversation, not the first to report it; empty = off",
+    )
+    parser.add_argument("--arbitration-port", type=int, default=6056, help="UDP port the arbitration listens on (and the peers' default port)")
+    parser.add_argument("--arbitration-window-ms", type=int, default=150, help="How long a satellite waits for the peers' claims of one wake word")
+    parser.add_argument(
+        "--arbitration-offset-db",
+        type=float,
+        default=0.0,
+        help="Added to this satellite's wake word SNR before the comparison: a negative value for a microphone that hears the next rooms too well",
     )
     parser.add_argument(
         "--wake-metrics-frame-ms",
@@ -520,6 +535,8 @@ async def main() -> None:
         listen_during_wake_sound=args.listen_during_wake_sound,
         wake_metrics_seconds=args.wake_metrics_seconds,
         wake_metrics_frame_ms=args.wake_metrics_frame_ms,
+        arbiter=(Arbiter(friendly_name, parse_peers(args.arbitration_peers, args.arbitration_port), args.arbitration_window_ms / 1000, args.arbitration_offset_db)
+                 if args.arbitration_peers else None),
     )
 
     if fallback_used:
@@ -611,6 +628,9 @@ async def main() -> None:
     # ------------------------------------------------------------------
     # Audio processing thread
     # ------------------------------------------------------------------
+    if state.arbiter is not None:
+        state.arbiter.start(args.arbitration_port)
+
     process_audio_thread = threading.Thread(
         target=process_audio,
         args=(state, mic, args.audio_input_block_size),
@@ -727,7 +747,9 @@ def process_audio(state: ServerState, mic, block_size: int):
 
     last_active: Optional[float] = None
     webrtc: Optional[WebRTCProcessor] = None
-    levels = LevelHistory(state.wake_metrics_frame_ms, state.wake_metrics_seconds) if state.wake_metrics_seconds > 0 else None
+    # the arbitration needs the word and the room before it (wake_snr); the log may ask for more
+    history_s = max(state.wake_metrics_seconds, (DEFAULT_WORD_MS + DEFAULT_NOISE_MS) / 1000 if state.arbiter is not None else 0)
+    levels = LevelHistory(state.wake_metrics_frame_ms, history_s) if history_s > 0 else None
 
     try:
         _LOGGER.debug("Opening audio input device: %s", mic.name)
@@ -902,9 +924,13 @@ def process_audio(state: ServerState, mic, block_size: int):
                             # Check refractory
                             now = time.monotonic()
                             if (last_active is None) or ((now - last_active) > state.refractory_seconds):
-                                if levels is not None:
+                                if levels is not None and state.wake_metrics_seconds > 0:
                                     _LOGGER.info(format_metrics(wake_word.wake_word, probability, state.wake_metrics_frame_ms, levels.levels()))  # type: ignore[union-attr]
-                                state.satellite.wakeup(wake_word)
+                                if state.arbiter is not None and levels is not None:
+                                    snr = wake_snr(levels.levels(), state.wake_metrics_frame_ms)
+                                    state.arbiter.claim(wake_word.wake_word, snr, functools.partial(_wake_if_connected, state, wake_word))  # type: ignore[union-attr]
+                                else:
+                                    state.satellite.wakeup(wake_word)
                                 last_active = now
 
                     # Always process to keep state correct
@@ -933,6 +959,12 @@ def process_audio(state: ServerState, mic, block_size: int):
 
 
 # -----------------------------------------------------------------------------
+
+
+def _wake_if_connected(state: ServerState, wake_word) -> None:
+    """The arbitration's winner starts the conversation, if Home Assistant is still connected when the window ends."""
+    if state.satellite is not None:
+        state.satellite.wakeup(wake_word)
 
 
 def _float_to_pcm16(samples: np.ndarray, scalar: float) -> bytes:
